@@ -1,0 +1,6 @@
+{
+  "name": "IA Student",
+  "description": "Tu guía experto en Google AI Studio para crear aplicaciones, chatbots y flujos con Gemini",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
