@@ -180,7 +180,7 @@ fun ProjectsScreen(
                                             },
                                             modifier = Modifier.weight(1f)
                                         ) {
-                                            Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(14.dp))
+                                            Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.Chat, contentDescription = null, modifier = Modifier.size(14.dp))
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Text("Abrir en Chat", fontSize = 11.sp)
                                         }

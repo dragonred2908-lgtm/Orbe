@@ -337,7 +337,7 @@ Mentor IA Student, estoy evaluando mi proyecto '$projectTitle' en el Paso 5:
                         enabled = currentStep > 1,
                         modifier = Modifier.testTag("step_back_button")
                     ) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Atrás")
                     }
@@ -356,7 +356,7 @@ Mentor IA Student, estoy evaluando mi proyecto '$projectTitle' en el Paso 5:
                     ) {
                         Text(if (currentStep == 5) "Finalizar" else "Continuar")
                         Spacer(modifier = Modifier.width(6.dp))
-                        Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
                     }
                 }
             }
@@ -509,7 +509,7 @@ fun Step3Opciones(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.AltRoute, contentDescription = null, tint = AiStudioBlue)
+            Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.AltRoute, contentDescription = null, tint = AiStudioBlue)
             Spacer(modifier = Modifier.width(8.dp))
             Text("PASO 3 — Opciones Sencillas para Avanzar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
