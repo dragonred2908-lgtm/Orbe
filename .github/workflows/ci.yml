@@ -25,17 +25,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Java JDK 11
+      - name: Set up Java JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '17'
+
+      - name: Grant execute permission for gradlew
+        if: runner.os != 'Windows'
+        run: chmod +x ./gradlew || true
 
       - name: Show Java and Gradle versions
         shell: bash
         run: |
           java -version
-          chmod +x ./gradlew || true
           ./gradlew --version
 
       - name: Create .env placeholder for CI
