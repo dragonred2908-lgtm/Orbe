@@ -6,16 +6,37 @@ import com.example.BuildConfig
 import com.example.data.model.ChatMessage
 import com.example.data.model.MessageSender
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
+/**
+ * Cliente seguro y endurecido para la API de Google Gemini.
+ *
+ * Mejoras de seguridad y robustez:
+ * - Credenciales transmitidas exclusivamente mediante encabezado 'x-goog-api-key' (nunca en parámetros URL).
+ * - Protección contra exposición de claves en logs de error o URLs imprimibles.
+ * - Soporte para claves introducidas por UI/almacenamiento seguro por encima de valores estáticos.
+ * - Validación y límites estrictos previos al envío de payloads (máximo 32k caracteres en prompt, 14MB en Base64).
+ * - Manejo de reintentos exponenciales para errores transitorios (429 Rate Limit y 5xx Server Errors).
+ * - Cierre determinista de Response/ResponseBody mediante bloques 'use' para prevenir fugas de conexiones y sockets.
+ */
 class GeminiApiClient {
+
+    companion object {
+        private const val TAG = "GeminiApiClient"
+        private const val MAX_PROMPT_LENGTH = 32_000
+        private const val MAX_IMAGE_BASE64_LENGTH = 14_000_000 // Aprox. 10MB en binario
+        private const val MAX_RETRIES = 3
+        private const val INITIAL_RETRY_DELAY_MS = 1000L
+    }
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(60, TimeUnit.SECONDS)
@@ -25,13 +46,26 @@ class GeminiApiClient {
 
     private val baseUrl = "https://generativelanguage.googleapis.com/v1beta"
 
+    // Clave configurada en caliente por el usuario desde la UI
+    @Volatile
+    private var customUserApiKey: String? = null
+
+    fun setUserApiKey(key: String?) {
+        customUserApiKey = key?.trim()
+    }
+
     private fun getApiKey(): String {
+        val userKey = customUserApiKey
+        if (!userKey.isNullOrBlank() && userKey != "MY_GEMINI_API_KEY") {
+            return userKey
+        }
+
         return try {
             val key = BuildConfig.GEMINI_API_KEY
             if (key.isNullOrBlank() || key == "MY_GEMINI_API_KEY") {
                 ""
             } else {
-                key
+                key.trim()
             }
         } catch (e: Exception) {
             ""
@@ -40,6 +74,64 @@ class GeminiApiClient {
 
     fun isApiKeyConfigured(): Boolean {
         return getApiKey().isNotBlank()
+    }
+
+    /**
+     * Ejecuta una petición HTTP con reintentos exponenciales para códigos 429 y 5xx,
+     * garantizando el cierre explícito de la respuesta para evitar fugas de recursos.
+     */
+    private suspend fun executeWithRetry(request: Request): Pair<Int, String> = withContext(Dispatchers.IO) {
+        var currentDelay = INITIAL_RETRY_DELAY_MS
+        var lastCode = 0
+        var lastBody = ""
+
+        for (attempt in 1..MAX_RETRIES) {
+            try {
+                val call = client.newCall(request)
+                val (code, body) = call.execute().use { response: Response ->
+                    val c = response.code
+                    val b = response.body?.string() ?: ""
+                    Pair(c, b)
+                }
+
+                lastCode = code
+                lastBody = body
+
+                // Éxito o error no recuperable con reintento (ej: 400, 401, 403, 404)
+                if (code in 200..299 || (code !in 500..599 && code != 429)) {
+                    return@withContext Pair(code, body)
+                }
+
+                // Error transitorio (429 o 5xx)
+                if (attempt < MAX_RETRIES) {
+                    Log.w(TAG, "Reintentando solicitud tras código HTTP $code (Intento $attempt/$MAX_RETRIES en ${currentDelay}ms)")
+                    delay(currentDelay)
+                    currentDelay *= 2
+                }
+            } catch (e: Exception) {
+                lastBody = e.localizedMessage ?: "Error de red"
+                if (attempt < MAX_RETRIES) {
+                    Log.w(TAG, "Reintentando solicitud tras excepción de red: ${e.javaClass.simpleName}")
+                    delay(currentDelay)
+                    currentDelay *= 2
+                }
+            }
+        }
+
+        Pair(lastCode, lastBody)
+    }
+
+    /**
+     * Construye una solicitud HTTP segura incluyendo la clave en encabezado en lugar de URL.
+     */
+    private fun buildSecureRequest(endpointUrl: String, jsonBody: String, apiKey: String): Request {
+        val requestBody = jsonBody.toRequestBody("application/json; charset=utf-8".toMediaType())
+        return Request.Builder()
+            .url(endpointUrl)
+            .addHeader("x-goog-api-key", apiKey)
+            .addHeader("Content-Type", "application/json")
+            .post(requestBody)
+            .build()
     }
 
     suspend fun generateContent(
@@ -59,7 +151,22 @@ class GeminiApiClient {
         val apiKey = getApiKey()
         if (apiKey.isBlank()) {
             return@withContext GenerationResult(
-                text = "⚠️ **Clave de API no configurada**\n\nPara comunicarte directamente con los modelos de Google Gemini, por favor agrega tu `GEMINI_API_KEY` en el panel de **Secrets** de AI Studio.\n\n💡 *Mientras tanto, puedes explorar todas las secciones educativas del paso a paso, generadores de código y guías en IA Student.*",
+                text = "⚠️ **Clave de API no configurada**\n\nPara comunicarte directamente con los modelos de Google Gemini, por favor agrega tu `GEMINI_API_KEY` en el panel de **Secrets** de AI Studio o introdúcela en la sección de configuración de la app.",
+                groundingSources = emptyList()
+            )
+        }
+
+        // Validación y límites previos al envío
+        if (prompt.length > MAX_PROMPT_LENGTH) {
+            return@withContext GenerationResult(
+                text = "❌ Error de validación: El texto del prompt (${prompt.length} caracteres) supera el límite máximo permitido ($MAX_PROMPT_LENGTH caracteres).",
+                groundingSources = emptyList()
+            )
+        }
+
+        if (!imageBase64.isNullOrBlank() && imageBase64.length > MAX_IMAGE_BASE64_LENGTH) {
+            return@withContext GenerationResult(
+                text = "❌ Error de validación: La imagen adjunta supera el tamaño máximo permitido (~10MB). Por favor adjunta una imagen más ligera.",
                 groundingSources = emptyList()
             )
         }
@@ -125,8 +232,6 @@ class GeminiApiClient {
             genConfig.put("topP", topP)
             genConfig.put("topK", topK)
 
-            // Thinking mode: if High Thinking is enabled and model is gemini-4-argon,
-            // set thinkingLevel to HIGH and do NOT set maxOutputTokens
             if (thinkingLevelHigh && model.contains("gemini-4-argon")) {
                 val thinkingConfig = JSONObject()
                 thinkingConfig.put("thinkingLevel", "HIGH")
@@ -152,26 +257,20 @@ class GeminiApiClient {
                 jsonRoot.put("tools", toolsArray)
             }
 
-            val url = "$baseUrl/models/$model:generateContent?key=$apiKey"
-            val requestBody = jsonRoot.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
-            val request = Request.Builder()
-                .url(url)
-                .post(requestBody)
-                .build()
+            val endpoint = "$baseUrl/models/$model:generateContent"
+            val request = buildSecureRequest(endpoint, jsonRoot.toString(), apiKey)
 
-            val response = client.newCall(request).execute()
-            val responseBody = response.body?.string() ?: ""
+            val (code, responseBody) = executeWithRetry(request)
 
-            if (!response.isSuccessful) {
-                Log.e("GeminiApiClient", "Error ${response.code}: $responseBody")
+            if (code !in 200..299) {
                 val errMsg = try {
                     val errJson = JSONObject(responseBody)
                     errJson.getJSONObject("error").getString("message")
                 } catch (e: Exception) {
-                    response.message
+                    "Código HTTP $code"
                 }
                 return@withContext GenerationResult(
-                    text = "❌ Error al consultar $model (${response.code}): $errMsg",
+                    text = "❌ Error al consultar $model ($code): $errMsg",
                     groundingSources = emptyList()
                 )
             }
@@ -219,9 +318,9 @@ class GeminiApiClient {
                 groundingSources = groundingSources
             )
         } catch (e: Exception) {
-            Log.e("GeminiApiClient", "Request exception", e)
+            Log.e(TAG, "Request exception occurred", e)
             return@withContext GenerationResult(
-                text = "❌ Ocurrió un error en la conexión: ${e.localizedMessage ?: e.message}",
+                text = "❌ Ocurrió un error en la conexión: ${e.localizedMessage ?: "Fallo de comunicación"}",
                 groundingSources = emptyList()
             )
         }
@@ -233,7 +332,11 @@ class GeminiApiClient {
     ): SpeechResult = withContext(Dispatchers.IO) {
         val apiKey = getApiKey()
         if (apiKey.isBlank()) {
-            return@withContext SpeechResult(error = "Clave GEMINI_API_KEY no configurada en Secrets.")
+            return@withContext SpeechResult(error = "Clave GEMINI_API_KEY no configurada.")
+        }
+
+        if (text.length > MAX_PROMPT_LENGTH) {
+            return@withContext SpeechResult(error = "El texto para síntesis supera el límite máximo permitido.")
         }
 
         try {
@@ -263,15 +366,13 @@ class GeminiApiClient {
 
             jsonRoot.put("generationConfig", genConfig)
 
-            val url = "$baseUrl/models/gemini-3.8-flash-tts:generateContent?key=$apiKey"
-            val requestBody = jsonRoot.toString().toRequestBody("application/json".toMediaType())
-            val request = Request.Builder().url(url).post(requestBody).build()
+            val endpoint = "$baseUrl/models/gemini-2.5-flash-preview-tts:generateContent"
+            val request = buildSecureRequest(endpoint, jsonRoot.toString(), apiKey)
 
-            val response = client.newCall(request).execute()
-            val body = response.body?.string() ?: ""
+            val (code, body) = executeWithRetry(request)
 
-            if (!response.isSuccessful) {
-                return@withContext SpeechResult(error = "Error TTS ${response.code}: $body")
+            if (code !in 200..299) {
+                return@withContext SpeechResult(error = "Error TTS $code: $body")
             }
 
             val respJson = JSONObject(body)
@@ -314,6 +415,10 @@ class GeminiApiClient {
             return@withContext ImageResult(error = "Clave GEMINI_API_KEY no configurada.")
         }
 
+        if (prompt.length > MAX_PROMPT_LENGTH) {
+            return@withContext ImageResult(error = "El prompt de imagen excede el límite máximo.")
+        }
+
         try {
             val jsonRoot = JSONObject()
             val contents = JSONArray()
@@ -339,15 +444,13 @@ class GeminiApiClient {
 
             jsonRoot.put("generationConfig", genConfig)
 
-            val url = "$baseUrl/models/$model:generateContent?key=$apiKey"
-            val requestBody = jsonRoot.toString().toRequestBody("application/json".toMediaType())
-            val request = Request.Builder().url(url).post(requestBody).build()
+            val endpoint = "$baseUrl/models/$model:generateContent"
+            val request = buildSecureRequest(endpoint, jsonRoot.toString(), apiKey)
 
-            val response = client.newCall(request).execute()
-            val body = response.body?.string() ?: ""
+            val (code, body) = executeWithRetry(request)
 
-            if (!response.isSuccessful) {
-                return@withContext ImageResult(error = "Error Imagen ${response.code}: $body")
+            if (code !in 200..299) {
+                return@withContext ImageResult(error = "Error Imagen $code: $body")
             }
 
             val respJson = JSONObject(body)
@@ -381,11 +484,15 @@ class GeminiApiClient {
 
     suspend fun generateVideo(
         prompt: String,
-        aspectRatio: String = "16:9" // 16:9 or 9:16
+        aspectRatio: String = "16:9"
     ): VideoResult = withContext(Dispatchers.IO) {
         val apiKey = getApiKey()
         if (apiKey.isBlank()) {
             return@withContext VideoResult(error = "Clave GEMINI_API_KEY no configurada.")
+        }
+
+        if (prompt.length > MAX_PROMPT_LENGTH) {
+            return@withContext VideoResult(error = "El prompt de video excede el límite máximo.")
         }
 
         try {
@@ -398,20 +505,18 @@ class GeminiApiClient {
             config.put("aspectRatio", aspectRatio)
             jsonRoot.put("config", config)
 
-            val url = "$baseUrl/models/veo-3.1-fast-generate-preview:generateVideos?key=$apiKey"
-            val requestBody = jsonRoot.toString().toRequestBody("application/json".toMediaType())
-            val request = Request.Builder().url(url).post(requestBody).build()
+            val endpoint = "$baseUrl/models/veo-3.1-fast-generate-preview:generateVideos"
+            val request = buildSecureRequest(endpoint, jsonRoot.toString(), apiKey)
 
-            val response = client.newCall(request).execute()
-            val body = response.body?.string() ?: ""
+            val (code, body) = executeWithRetry(request)
 
-            if (!response.isSuccessful) {
-                return@withContext VideoResult(error = "Veo Error ${response.code}: $body")
+            if (code !in 200..299) {
+                return@withContext VideoResult(error = "Veo Error $code: $body")
             }
 
             val respJson = JSONObject(body)
             val operationName = respJson.optString("name", "Operación iniciada con éxito")
-            VideoResult(operationName = operationName, message = "Generación de video iniciada en Veo 3.1 ($aspectRatio). Enlace/Operación: $operationName")
+            VideoResult(operationName = operationName, message = "Generación de video iniciada en Veo 3.1 ($aspectRatio). Operación: $operationName")
         } catch (e: Exception) {
             VideoResult(error = e.message)
         }
@@ -419,11 +524,15 @@ class GeminiApiClient {
 
     suspend fun generateMusic(
         prompt: String,
-        model: String = "lyria-3-clip-preview" // or lyria-3-pro-preview
+        model: String = "lyria-3-clip-preview"
     ): MusicResult = withContext(Dispatchers.IO) {
         val apiKey = getApiKey()
         if (apiKey.isBlank()) {
             return@withContext MusicResult(error = "Clave GEMINI_API_KEY no configurada.")
+        }
+
+        if (prompt.length > MAX_PROMPT_LENGTH) {
+            return@withContext MusicResult(error = "El prompt excede el límite permitido.")
         }
 
         try {
@@ -444,15 +553,13 @@ class GeminiApiClient {
             genConfig.put("responseModalities", modalities)
             jsonRoot.put("generationConfig", genConfig)
 
-            val url = "$baseUrl/models/$model:generateContent?key=$apiKey"
-            val requestBody = jsonRoot.toString().toRequestBody("application/json".toMediaType())
-            val request = Request.Builder().url(url).post(requestBody).build()
+            val endpoint = "$baseUrl/models/$model:generateContent"
+            val request = buildSecureRequest(endpoint, jsonRoot.toString(), apiKey)
 
-            val response = client.newCall(request).execute()
-            val body = response.body?.string() ?: ""
+            val (code, body) = executeWithRetry(request)
 
-            if (!response.isSuccessful) {
-                return@withContext MusicResult(error = "Lyria Error ${response.code}: $body")
+            if (code !in 200..299) {
+                return@withContext MusicResult(error = "Lyria Error $code: $body")
             }
 
             val respJson = JSONObject(body)
@@ -511,14 +618,12 @@ class GeminiApiClient {
             contents.put(content)
             jsonRoot.put("contents", contents)
 
-            val url = "$baseUrl/models/gemini-3.5-transcribe:generateContent?key=$apiKey"
-            val requestBody = jsonRoot.toString().toRequestBody("application/json".toMediaType())
-            val request = Request.Builder().url(url).post(requestBody).build()
+            val endpoint = "$baseUrl/models/gemini-2.5-flash:generateContent"
+            val request = buildSecureRequest(endpoint, jsonRoot.toString(), apiKey)
 
-            val response = client.newCall(request).execute()
-            val body = response.body?.string() ?: ""
-            if (!response.isSuccessful) {
-                return@withContext "Error ${response.code}: $body"
+            val (code, body) = executeWithRetry(request)
+            if (code !in 200..299) {
+                return@withContext "Error $code: $body"
             }
 
             val respJson = JSONObject(body)

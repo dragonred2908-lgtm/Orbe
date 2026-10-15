@@ -84,20 +84,44 @@ Generar instaladores nativos para el sistema operativo actual:
 
 ---
 
-## 🔑 Configuración de Claves y Secretos (GEMINI_API_KEY)
+---
 
-> ⚠️ **IMPORTANTE:** Nunca subas tus claves de API ni secretos al repositorio público ni a commits de Git.
+## 🔑 Configuración Segura de Claves (GEMINI_API_KEY)
 
-1. Toma el archivo `.env.example` en la raíz del proyecto como plantilla:
-   ```bash
-   cp .env.example .env
-   ```
-2. Abre `.env` y añade tu clave de API de Gemini:
-   ```properties
-   GEMINI_API_KEY=tu_clave_real_aqui
-   ```
-3. El archivo `.env` está expresamente excluido del control de versiones mediante `.gitignore`.
-4. En **Google AI Studio**, las claves se inyectan automáticamente y de forma segura mediante el Secrets Gradle Plugin en `BuildConfig.GEMINI_API_KEY`.
+> 🛡️ **Buenas Prácticas de Seguridad:** No edites manualmente `.env` ni expongas claves en commits de Git.
+
+### 1. Desde la Interfaz de Usuario (Recomendado)
+- **En la Aplicación de Escritorio (`:shared`):**  
+  Haz clic en el botón **`⚙️ Configurar API / Modelo`** en la esquina superior derecha de la ventana. Pega tu clave de Google Gemini directamente en el campo seguro y presiona **"Aplicar"**. La clave se almacena en memoria de forma protegida para tu sesión de trabajo sin persistir en texto plano en el repositorio.
+- **En la Aplicación Móvil Android (`:app`):**  
+  Abre la aplicación y accede a los ajustes del asistente para introducir o actualizar tu clave. Alternativamente, en el entorno de desarrollo de **Google AI Studio**, utiliza el panel lateral seguro de **Secrets** para inyectar automáticamente `GEMINI_API_KEY`.
+
+### 2. Para Entornos de Integración Continua (CI/CD)
+El archivo `.env.example` sirve como plantilla segura con marcadores de posición (`MY_GEMINI_API_KEY`). El archivo `.env` real está estrictamente ignorado por `.gitignore`.
+
+---
+
+## 🔒 Servidor Compañero de Escritorio (`companion_server.py`) [Opcional]
+
+El proyecto incluye un servicio opcional (`app/src/main/assets/companion_server.py`) que permite emparejar tu PC con el asistente móvil para realizar búsquedas remotas de archivos entre dispositivos autorizados.
+
+### Medidas de Seguridad y Endurecimiento:
+- **Enlace Local por Defecto:** Escucha exclusivamente en `127.0.0.1` (localhost). Para permitir acceso desde tu red local segura, puedes definir la variable de entorno `COMPANION_BIND_HOST=0.0.0.0`.
+- **Autenticación Obligatoria:** Requiere un token criptográfico generado automáticamente al iniciar el servidor o configurado con `COMPANION_AUTH_TOKEN`. Cada petición debe incluir el encabezado `Authorization: Bearer <TOKEN>` o `X-Companion-Token: <TOKEN>`.
+- **Prevención de Directory Traversal:** Las búsquedas están estrictamente confinadas al directorio del usuario (`~`) o subcarpetas explícitas (`Documents`, `Desktop`, `Downloads`). Se bloquean accesos a carpetas y archivos sensibles (`.ssh`, `.gnupg`, `.aws`, `.env`, llaves privadas, etc.).
+- **Privacidad de Archivos:** El servicio **nunca** transmite el contenido de los archivos; únicamente devuelve metadatos (nombre, extensión, tamaño en KB, fecha de modificación) con un límite máximo de 25 resultados.
+- **CORS Restringido:** Se prohíbe el uso de `Access-Control-Allow-Origin: *`. Se valida el origen o se restringe a clientes autorizados.
+- **Multi-hilo sin Bloqueo:** Implementado sobre `ThreadingHTTPServer` con registro estructurado de accesos y errores.
+
+### Cómo Iniciar y Emparejar el Servidor:
+```bash
+# Iniciar el servidor (se generará un token único mostrado en consola):
+python3 app/src/main/assets/companion_server.py
+
+# Opcional: configurar host y token fijos para tu red privada:
+COMPANION_BIND_HOST=0.0.0.0 COMPANION_AUTH_TOKEN="mi_token_secreto_personal" python3 app/src/main/assets/companion_server.py
+```
+Copia el **Token de Autorización** mostrado en tu terminal e introdúcelo en la pantalla de *Instalación en PC & Búsqueda Remota* de tu app.
 
 ---
 
@@ -111,3 +135,4 @@ Para más información, consulta el archivo [LICENSE](LICENSE).
 ## 🎨 Aviso Sobre Recursos e Imágenes (Assets)
 
 Los recursos visuales ubicados en `app/src/main/res/drawable/` fueron generados para la identidad visual de la aplicación. Para mayor detalle sobre dependencias, atribuciones y revisión de licencias de terceros, consulta [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+

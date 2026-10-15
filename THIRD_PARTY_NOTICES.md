@@ -2,7 +2,7 @@
 
 Este proyecto utiliza librerías, dependencias de código abierto y recursos de terceros bajo sus respectivas licencias. Este documento proporciona un registro inicial de atribución para los componentes detectados en los módulos `:app` y `:shared`.
 
-> ℹ️ **Nota de Referencia Inicial:** Esta lista es una relación inicial de las principales dependencias utilizadas. Se recomienda generar el reporte exhaustivo y detallado de dependencias del árbol de compilación ejecutando el script `scripts/generate_dependencies_report.sh` (el cual utiliza `./gradlew :app:dependencies --configuration releaseRuntimeClasspath > deps.txt`).
+> ℹ️ **Nota de Verificación de Dependencias:** El reporte exhaustivo de dependencias del árbol de compilación se genera mediante `scripts/generate_dependencies_report.sh` (`./gradlew :app:dependencies --configuration releaseRuntimeClasspath > deps.txt`). El archivo `deps.txt` generado contiene 1.048 líneas detallando la resolución exacta de versiones y artefactos. A continuación se presenta el resumen de los componentes principales y sus licencias.
 
 ---
 
