@@ -25,3 +25,4 @@ dependencyResolutionManagement {
 rootProject.name = "IA Student"
 
 include(":app")
+include(":shared")

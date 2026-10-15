@@ -1,0 +1,56 @@
+name: Multi-OS Continuous Integration
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - 'add/**'
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+      - master
+
+jobs:
+  build:
+    name: Build & Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Create .env placeholder for CI
+        shell: bash
+        run: |
+          if [ ! -f .env ]; then
+            cp .env.example .env || touch .env
+          fi
+
+      - name: Grant execute permission for gradlew
+        if: runner.os != 'Windows'
+        run: chmod +x gradlew || true
+
+      - name: Build project (:app and :shared)
+        shell: bash
+        run: ./gradlew build --no-daemon --stacktrace
+
+      - name: Run tests
+        shell: bash
+        run: ./gradlew test --no-daemon --stacktrace
