@@ -19,55 +19,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
+import androidx.compose.ui.window.rememberWindowState
+import androidx.compose.ui.unit.dp
+import com.example.shared.ui.DesktopAssistantScreen
 
 fun main() = application {
+    val windowState = rememberWindowState(width = 1100.dp, height = 760.dp)
     Window(
         onCloseRequest = ::exitApplication,
-        title = "IA Student - Desktop"
+        title = "IA Student — Asistente de Voz y Reconocimiento STT",
+        state = windowState
     ) {
-        DesktopApp()
+        DesktopAssistantScreen()
     }
 }
 
 @Composable
 fun DesktopApp() {
-    MaterialTheme(
-        colorScheme = darkColorScheme(
-            background = Color(0xFF030712),
-            surface = Color(0xFF111827),
-            primary = Color(0xFF00F0FF)
-        )
-    ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = Color(0xFF030712)
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "🌌",
-                        fontSize = 48.sp
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "IA Student - Desktop placeholder",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF00F0FF)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Soporte Multiplataforma para Windows, Linux y macOS",
-                        fontSize = 14.sp,
-                        color = Color(0xFF94A3B8)
-                    )
-                }
-            }
-        }
-    }
+    DesktopAssistantScreen()
 }
+

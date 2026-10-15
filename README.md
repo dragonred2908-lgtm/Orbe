@@ -15,7 +15,11 @@
 ### 🎯 Objetivo Funcional de la App
 
 1. **Orbe Cuántico Inmersivo:** Pantalla completa interactiva con física de partículas, oscilaciones cuánticas reactivas a la interacción y al estado de procesamiento.
-2. **Asistencia de Tiempo Completo:** Activación instantánea mediante toque o frase de llamada configurable ("Oye Orbe", "IA Student", o personalizada).
+2. **Asistencia de Tiempo Completo y Reconocimiento de Voz (Speech-to-Text):**
+   - Activación mediante frase clave personalizada ("Oye Aura", "IA Student", "Aura", o configurable en caliente).
+   - Motor de Speech-to-Text en tiempo real integrado en el módulo `:shared` compatible con Windows, Linux, macOS y Android.
+   - Captura de audio nativa PCM/WAV (16kHz 16-bit) con visualización de nivel de audio (RMS) y Orbe Cuántico reactivo.
+   - Procesamiento inmediato de consultas mediante Google Gemini API con respuestas estructuradas en tiempo real.
 3. **Búsqueda Inteligente de Archivos (Móvil y PC):**
    - Búsqueda y visualización de archivos en el dispositivo local.
    - Búsqueda remota entre dispositivos vinculados bajo el mismo usuario (Android, Windows, macOS, Linux).
