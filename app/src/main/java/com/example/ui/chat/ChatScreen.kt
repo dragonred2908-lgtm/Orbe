@@ -25,6 +25,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.automirrored.outlined.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -578,7 +580,7 @@ Estoy aquí para guiarte en la creación de aplicaciones, chatbots, flujos de tr
                         modifier = Modifier.testTag("send_message_button")
                     ) {
                         Icon(
-                            Icons.Default.Send,
+                            Icons.AutoMirrored.Filled.Send,
                             contentDescription = "Enviar",
                             tint = MaterialTheme.colorScheme.onPrimary
                         )
@@ -733,7 +735,7 @@ fun MessageBubble(
                         modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.VolumeUp,
+                            imageVector = Icons.AutoMirrored.Outlined.VolumeUp,
                             contentDescription = "Escuchar respuesta con Gemini TTS",
                             modifier = Modifier.size(16.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant

@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -131,10 +132,61 @@ fun ImageLabSection(apiClient: GeminiApiClient) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("🎨 Generador de Imágenes", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            var imageMode by remember { mutableIntStateOf(0) } // 0: Generar, 1: Editar / Retocar
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { imageMode = 0 },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (imageMode == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = if (imageMode == 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Crear Foto", fontSize = 12.sp)
+                }
+
+                Button(
+                    onClick = { imageMode = 1 },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (imageMode == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = if (imageMode == 1) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.AutoFixHigh, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Editar / Retocar", fontSize = 12.sp)
+                }
+            }
+
+            if (imageMode == 1) {
+                // MODO EDICIÓN / RETOQUE DE FOTOS
+                Text("🎨 Retoque y Filtros de Edición con IA", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("Selecciona un estilo de retoque o escribe las modificaciones deseadas:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                val editPresets = listOf(
+                    "Estilo Cyberpunk Neón" to "Transformar la imagen con iluminación de neón cian y magenta, estética cyberpunk futurista de alta definición",
+                    "Iluminación Cinemática" to "Mejorar la iluminación a nivel cinematográfico, tonos cálidos dorados, contraste profundo y bokeh sutil",
+                    "Efecto Acuarela Artística" to "Convertir la composición en una pintura al óleo y acuarela impresionista detallada",
+                    "Modo Ultra Nitidez 4K" to "Mejorar la resolución y nitidez de detalles faciales y texturas al máximo detalle fotográfico"
+                )
+
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(editPresets) { (label, presetPrompt) ->
+                        FilterChip(
+                            selected = prompt.contains(label),
+                            onClick = { prompt = presetPrompt },
+                            label = { Text(label, fontSize = 11.sp) }
+                        )
+                    }
+                }
+            }
+
             Text(
-                "Modelos soportados: gemini-nano-banana-2.1 (uso general) y gemini-3-pro-image-preview (estudio)",
-                fontSize = 12.sp,
+                if (imageMode == 0) "Modelos soportados: gemini-nano-banana-2.1 (uso general) y gemini-3-pro-image-preview (estudio)" else "El asistente aplicará los cambios estilísticos y fotográficos solicitados:",
+                fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
@@ -155,7 +207,7 @@ fun ImageLabSection(apiClient: GeminiApiClient) {
             OutlinedTextField(
                 value = prompt,
                 onValueChange = { prompt = it },
-                label = { Text("Prompt de la imagen") },
+                label = { Text(if (imageMode == 0) "Prompt de la imagen a crear" else "Instrucciones de edición / retoque") },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2
             )
@@ -206,7 +258,7 @@ fun ImageLabSection(apiClient: GeminiApiClient) {
                         if (res.imageBase64 != null) {
                             resultImageBase64 = res.imageBase64
                         } else {
-                            errorMessage = res.error ?: "No se pudo generar la imagen."
+                            errorMessage = res.error ?: "No se pudo procesar la imagen."
                         }
                         isGenerating = false
                     }
@@ -217,11 +269,11 @@ fun ImageLabSection(apiClient: GeminiApiClient) {
                 if (isGenerating) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onPrimary)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Generando imagen...")
+                    Text(if (imageMode == 0) "Generando foto..." else "Aplicando edición con IA...")
                 } else {
-                    Icon(Icons.Default.AutoFixHigh, contentDescription = null)
+                    Icon(if (imageMode == 0) Icons.Default.AutoFixHigh else Icons.Default.Tune, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Generar Imagen ($selectedRatio, $selectedSize)")
+                    Text(if (imageMode == 0) "Crear Foto ($selectedRatio, $selectedSize)" else "Aplicar Edición a la Foto")
                 }
             }
 
@@ -522,7 +574,7 @@ fun TtsLabSection(apiClient: GeminiApiClient, audioPlayer: AudioPlayerHelper) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Sintetizando voz...")
                 } else {
-                    Icon(Icons.Default.VolumeUp, contentDescription = null)
+                    Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Sintetizar y Reproducir con Gemini TTS")
                 }
