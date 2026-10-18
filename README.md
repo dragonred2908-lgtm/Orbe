@@ -86,6 +86,23 @@ Generar instaladores nativos para el sistema operativo actual:
 
 ---
 
+## 🤖 Catálogo de Modelos Google Gemini Utilizados
+
+La aplicación aprovecha las capacidades multimodales de la familia de modelos de **Google Gemini**:
+
+| Modelo | Capacidad / Tarea | Módulos |
+| :--- | :--- | :--- |
+| **`gemini-3.5-flash`** | Texto general, respuestas rápidas, asistente conversacional y orquestación | `:app` y `:shared` |
+| **`gemini-3.1-pro-preview`** | Razonamiento profundo, código, matemáticas y lógica de proyectos | `:app` y `:shared` |
+| **`gemini-3.8-flash`** | Respuestas actualizadas con Google Search Grounding y Google Maps | `:app` |
+| **`gemini-2.5-flash`** | Reconocimiento de voz (Speech-to-Text) multimodal sobre búfer WAV/PCM | `:app` y `:shared` |
+| **`gemini-2.5-flash-preview-tts`** | Síntesis de voz (Text-to-Speech) con voces personalizadas (ej. Kore) | `:app` |
+| **`gemini-nano-banana-2.1`** | Generación y retoque de imágenes por prompt en proporciones 1:1, 16:9 y 9:16 | `:app` |
+| **`veo-3.1-fast-generate-preview`** | Generación de video cinemático y animación imagen-a-video (720p) | `:app` |
+| **`lyria-3-clip-preview`** | Generación de pistas musicales y clips de audio instrumental | `:app` |
+
+---
+
 ## 🔑 Configuración Segura de Claves (GEMINI_API_KEY)
 
 > 🛡️ **Buenas Prácticas de Seguridad:** No edites manualmente `.env` ni expongas claves en commits de Git.
@@ -96,8 +113,25 @@ Generar instaladores nativos para el sistema operativo actual:
 - **En la Aplicación Móvil Android (`:app`):**  
   Abre la aplicación y accede a los ajustes del asistente para introducir o actualizar tu clave. Alternativamente, en el entorno de desarrollo de **Google AI Studio**, utiliza el panel lateral seguro de **Secrets** para inyectar automáticamente `GEMINI_API_KEY`.
 
-### 2. Para Entornos de Integración Continua (CI/CD)
-El archivo `.env.example` sirve como plantilla segura con marcadores de posición (`MY_GEMINI_API_KEY`). El archivo `.env` real está estrictamente ignorado por `.gitignore`.
+### 2. Para Entornos de Integración Continua (GitHub Actions CI)
+Para compilar y ejecutar tests en GitHub Actions con acceso opcional a las APIs:
+1. En tu repositorio de GitHub, ve a **Settings > Secrets and variables > Actions**.
+2. Haz clic en **New repository secret**.
+3. Nombre: `GEMINI_API_KEY`.
+4. Valor: Pega tu clave de API de Google AI Studio.
+5. El flujo de CI (`.github/workflows/ci.yml`) inyecta automáticamente este secreto en el archivo `.env` antes de la ejecución de Gradle, asegurando que el secreto nunca se imprima en la consola ni quede registrado en el código fuente.
+
+### 3. Manejo Seguro en `BuildConfig.GEMINI_API_KEY`
+- El plugin **Secrets Gradle Plugin** está configurado para mapear `.env` con fallback seguro a `.env.example`:
+  ```kotlin
+  secrets {
+    propertiesFileName = ".env"
+    defaultPropertiesFileName = ".env.example"
+    ignoreList.add("FIREBASE_APPCHECK_DEBUG_TOKEN")
+  }
+  ```
+- El código en `GeminiApiClient.kt` y `JvmGeminiSttEngine.kt` valida de forma proactiva si la clave obtenida es el marcador por defecto (`"MY_GEMINI_API_KEY"`). Si es así, no realiza peticiones vacías a la API y en su lugar guía amigablemente al usuario para ingresar su clave mediante la interfaz gráfica.
+- Todas las credenciales se transmiten mediante encabezados HTTP seguros (`x-goog-api-key`), evitando su exposición en URLs, proxies o logs del sistema.
 
 ---
 

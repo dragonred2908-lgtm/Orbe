@@ -16,6 +16,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.AltRoute
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -337,7 +340,7 @@ Mentor IA Student, estoy evaluando mi proyecto '$projectTitle' en el Paso 5:
                         enabled = currentStep > 1,
                         modifier = Modifier.testTag("step_back_button")
                     ) {
-                        Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Atrás")
                     }
@@ -356,7 +359,7 @@ Mentor IA Student, estoy evaluando mi proyecto '$projectTitle' en el Paso 5:
                     ) {
                         Text(if (currentStep == 5) "Finalizar" else "Continuar")
                         Spacer(modifier = Modifier.width(6.dp))
-                        Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
                     }
                 }
             }
@@ -509,7 +512,7 @@ fun Step3Opciones(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.AltRoute, contentDescription = null, tint = AiStudioBlue)
+            Icon(Icons.AutoMirrored.Filled.AltRoute, contentDescription = null, tint = AiStudioBlue)
             Spacer(modifier = Modifier.width(8.dp))
             Text("PASO 3 — Opciones Sencillas para Avanzar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }

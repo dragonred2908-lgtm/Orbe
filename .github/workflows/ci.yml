@@ -17,8 +17,34 @@ on:
       - 'fix/**'
 
 jobs:
+  security-scan:
+    name: Security & Secret Leak Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Scan for accidental hardcoded API keys and uncommitted secrets
+        shell: bash
+        run: |
+          echo "Ejecutando escaneo de seguridad pre-merge..."
+          # Verificar que no exista archivo .env trackeado por git
+          if git ls-files --error-unmatch .env > /dev/null 2>&1; then
+            echo "::error::El archivo sensible .env está trackeado en Git. Debe eliminarse del historial."
+            exit 1
+          fi
+
+          # Escanear por patrones de claves reales de Google Gemini (AIzaSy...)
+          if grep -rE "AIzaSy[0-9A-Za-z_-]{33}" --exclude-dir=.git .; then
+            echo "::error::Se detectó una posible clave real de Google Gemini en el código fuente."
+            exit 1
+          fi
+
+          echo "✅ Escaneo de seguridad completado sin secretos expuestos."
+
   build:
     name: Build & Test on ${{ matrix.os }}
+    needs: security-scan
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -35,7 +61,8 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Grant execute permission for gradlew
+      # Conceder permisos de ejecución a gradlew únicamente en entornos Unix (Linux y macOS)
+      - name: Grant execute permission for gradlew (Unix)
         if: runner.os != 'Windows'
         run: chmod +x ./gradlew || true
 
@@ -43,19 +70,38 @@ jobs:
         shell: bash
         run: |
           java -version
-          ./gradlew --version
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cmd.exe /c gradlew.bat --version
+          else
+            ./gradlew --version
+          fi
 
       - name: Create .env placeholder for CI
         shell: bash
+        env:
+          CI_GEMINI_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           if [ ! -f .env ]; then
             cp .env.example .env || touch .env
           fi
+          if [ -n "$CI_GEMINI_KEY" ]; then
+            echo "GEMINI_API_KEY=$CI_GEMINI_KEY" >> .env
+            echo "Clave GEMINI_API_KEY inyectada desde GitHub Secrets."
+          fi
 
-      - name: Build project (:app and :shared)
-        shell: bash
+      # Ejecución condicional en Unix vs Windows para máxima compatibilidad nativa
+      - name: Build project (:app and :shared) [Unix]
+        if: runner.os != 'Windows'
         run: ./gradlew build --no-daemon
 
-      - name: Run tests
-        shell: bash
+      - name: Build project (:app and :shared) [Windows]
+        if: runner.os == 'Windows'
+        run: .\gradlew.bat build --no-daemon
+
+      - name: Run tests [Unix]
+        if: runner.os != 'Windows'
         run: ./gradlew test --no-daemon
+
+      - name: Run tests [Windows]
+        if: runner.os == 'Windows'
+        run: .\gradlew.bat test --no-daemon
