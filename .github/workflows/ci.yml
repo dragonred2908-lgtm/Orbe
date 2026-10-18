@@ -89,6 +89,27 @@ jobs:
             echo "Clave GEMINI_API_KEY inyectada desde GitHub Secrets."
           fi
 
+      - name: Create debug keystore for CI
+        shell: bash
+        run: |
+          # Create a debug.keystore in the repository root if it doesn't exist so Gradle's
+          # validateSigningDebug task can find it. Gradle uses rootDir/debug.keystore.
+          if [ ! -f debug.keystore ]; then
+            echo "Generating debug.keystore for CI..."
+            keytool -genkeypair -v \
+              -storetype PKCS12 \
+              -keystore debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          else
+            echo "debug.keystore already exists, skipping generation."
+          fi
+
       # Ejecución condicional en Unix vs Windows para máxima compatibilidad nativa
       - name: Build project (:app and :shared) [Unix]
         if: runner.os != 'Windows'
