@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -27,7 +28,11 @@ import com.example.data.api.GeminiApiClient
 import com.example.data.audio.AudioPlayerHelper
 import com.example.data.repository.AssistantSettings
 import com.example.data.repository.AssistantSettingsRepository
+import com.example.data.repository.LegalConsentRepository
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -485,6 +490,66 @@ fun AssistantCustomizationDialog(
                                 checkedTrackColor = Color(0xFF00F0FF)
                             )
                         )
+                    }
+                }
+
+                HorizontalDivider(
+                    color = Color(0x3300F0FF),
+                    modifier = Modifier.padding(vertical = 12.dp)
+                )
+
+                // 6. Sección Legal y Privacidad
+                val context = LocalContext.current
+                val consentRepo = remember { LegalConsentRepository(context) }
+                val consentState by consentRepo.consentStateFlow.collectAsState(initial = null)
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "⚖️ Legal y Privacidad",
+                        color = Color(0xFF00F0FF),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Surface(
+                        color = Color(0xFF161B22),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            val acceptedDate = consentState?.timestamp?.let {
+                                if (it > 0) SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(it)) else "Sin registrar"
+                            } ?: "Sin registrar"
+
+                            Text(
+                                text = "Consentimiento de Términos (v1.0): ${if (consentState?.isAccepted == true) "Aceptado ✅ ($acceptedDate)" else "Pendiente ⚠️"}",
+                                color = Color.White,
+                                fontSize = 12.sp
+                            )
+                            Text(
+                                text = "El software se rige por la Apache License 2.0 y procesa datos técnicos localmente en tu dispositivo.",
+                                color = Color(0xFF8B949E),
+                                fontSize = 11.sp
+                            )
+
+                            OutlinedButton(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        consentRepo.revokeConsent()
+                                        onDismissRequest()
+                                    }
+                                },
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFF85149)),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x66F85149)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("revoke_consent_button")
+                            ) {
+                                Icon(Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Revocar Consentimiento y Restablecer", fontSize = 12.sp)
+                            }
+                        }
                     }
                 }
 

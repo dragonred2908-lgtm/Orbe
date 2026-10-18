@@ -22,6 +22,7 @@ import com.example.data.repository.AssistantSettingsRepository
 import com.example.data.repository.BusinessAssistantRepository
 import com.example.data.repository.CrossPlatformRepository
 import com.example.data.repository.FileSearchRepository
+import com.example.data.repository.LegalConsentRepository
 import com.example.data.repository.PermissionsRepository
 import com.example.data.repository.ProjectRepository
 import com.example.ui.business.BusinessAssistantScreen
@@ -29,12 +30,14 @@ import com.example.ui.chat.ChatScreen
 import com.example.ui.desktop.DesktopInstallScreen
 import com.example.ui.files.FileSearchScreen
 import com.example.ui.hub.KnowledgeHubScreen
+import com.example.ui.legal.OnboardingConsentScreen
 import com.example.ui.multimodal.MultimodalLabScreen
 import com.example.ui.orb.QuantumOrbScreen
 import com.example.ui.permissions.PermissionsControlScreen
 import com.example.ui.projects.ProjectsScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.wizard.StepWizardScreen
+import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String, val title: String) {
     object QuantumOrb : Screen("orb", "Orbe Principal")
@@ -59,22 +62,39 @@ class MainActivity : ComponentActivity() {
     private val fileSearchRepo by lazy { FileSearchRepository(this) }
     private val businessRepo by lazy { BusinessAssistantRepository(this) }
     private val permissionsRepo by lazy { PermissionsRepository(this) }
+    private val consentRepo by lazy { LegalConsentRepository(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
-                MainAppScaffold(
-                    apiClient = apiClient,
-                    audioPlayer = audioPlayer,
-                    projectRepository = projectRepository,
-                    settingsRepository = settingsRepository,
-                    crossPlatformRepo = crossPlatformRepo,
-                    fileSearchRepo = fileSearchRepo,
-                    businessRepo = businessRepo,
-                    permissionsRepo = permissionsRepo
-                )
+                val coroutineScope = rememberCoroutineScope()
+                val consentState by consentRepo.consentStateFlow.collectAsState(initial = null)
+
+                if (consentState?.isAccepted != true) {
+                    OnboardingConsentScreen(
+                        onAcceptConsent = {
+                            coroutineScope.launch {
+                                consentRepo.recordConsent(true)
+                            }
+                        },
+                        onDeclineConsent = {
+                            finish()
+                        }
+                    )
+                } else {
+                    MainAppScaffold(
+                        apiClient = apiClient,
+                        audioPlayer = audioPlayer,
+                        projectRepository = projectRepository,
+                        settingsRepository = settingsRepository,
+                        crossPlatformRepo = crossPlatformRepo,
+                        fileSearchRepo = fileSearchRepo,
+                        businessRepo = businessRepo,
+                        permissionsRepo = permissionsRepo
+                    )
+                }
             }
         }
     }

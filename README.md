@@ -166,6 +166,16 @@ Para más información, consulta el archivo [LICENSE](LICENSE).
 
 ---
 
+## ⚖️ Marco Legal, Privacidad y Consentimiento
+
+Para asegurar la transparencia, el cumplimiento regulatorio y la protección del usuario, el proyecto cuenta con documentación legal formalizada:
+
+- 📜 **[Términos y Condiciones de Uso](LEGAL/TERMS.md):** Condiciones de uso, responsabilidades del usuario, licencias y exenciones de responsabilidad.
+- 🔒 **[Política de Privacidad](LEGAL/PRIVACY.md):** Tipos de datos procesados, almacenamiento local, minimización de telemetría y derechos de eliminación.
+- 🛡️ **[Procedimiento de Retirada DMCA](LEGAL/DMCA.md):** Mecanismo para notificación y resolución de reclamaciones sobre derechos de autor.
+
+---
+
 ## 🎨 Aviso Sobre Recursos e Imágenes (Assets)
 
 Los recursos visuales ubicados en `app/src/main/res/drawable/` fueron generados para la identidad visual de la aplicación. Para mayor detalle sobre dependencias, atribuciones y revisión de licencias de terceros, consulta [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

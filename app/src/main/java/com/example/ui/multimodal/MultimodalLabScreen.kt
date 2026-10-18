@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.api.GeminiApiClient
 import com.example.data.audio.AudioPlayerHelper
+import com.example.data.media.MediaMetadataHelper
 import com.example.ui.theme.GeminiAmber
 import com.example.ui.theme.GeminiViolet
 import kotlinx.coroutines.launch
@@ -116,6 +117,7 @@ fun MultimodalLabScreen(
 @Composable
 fun ImageLabSection(apiClient: GeminiApiClient) {
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
     var prompt by remember { mutableStateOf("Un laboratorio futurista de inteligencia artificial con hologramas de Google AI Studio") }
     var selectedModel by remember { mutableStateOf("gemini-nano-banana-2.1") }
     var selectedRatio by remember { mutableStateOf("1:1") }
@@ -123,6 +125,9 @@ fun ImageLabSection(apiClient: GeminiApiClient) {
     var isGenerating by remember { mutableStateOf(false) }
     var resultImageBase64 by remember { mutableStateOf<String?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var includeMetadata by remember { mutableStateOf(true) }
+    var authorName by remember { mutableStateOf("Usuario IA Student") }
+    var exportedExifSummary by remember { mutableStateOf<Map<String, String>?>(null) }
 
     val aspectRatios = listOf("1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9", "21:9")
     val imageSizes = listOf("1K", "2K", "4K")
@@ -307,6 +312,104 @@ fun ImageLabSection(apiClient: GeminiApiClient) {
                                 .clip(RoundedCornerShape(12.dp)),
                             contentScale = ContentScale.Fit
                         )
+
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Text(
+                                    text = "🏷️ Exportación con Metadatos Legales (EXIF)",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.clickable { includeMetadata = !includeMetadata }
+                                ) {
+                                    Checkbox(
+                                        checked = includeMetadata,
+                                        onCheckedChange = { includeMetadata = it },
+                                        modifier = Modifier.testTag("checkbox_include_metadata")
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Incluir metadatos de copyright y autoría",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+
+                                if (includeMetadata) {
+                                    OutlinedTextField(
+                                        value = authorName,
+                                        onValueChange = { authorName = it },
+                                        label = { Text("Autor / Titular de la obra", fontSize = 11.sp) },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+
+                                Button(
+                                    onClick = {
+                                        val savedFile = MediaMetadataHelper.saveBase64ImageWithMetadata(
+                                            context = context,
+                                            base64Data = resultImageBase64 ?: "",
+                                            fileName = "gemini_gen_${System.currentTimeMillis()}.jpg",
+                                            author = authorName,
+                                            prompt = prompt,
+                                            includeMetadata = includeMetadata
+                                        )
+                                        if (savedFile != null) {
+                                            exportedExifSummary = MediaMetadataHelper.readExifSummary(savedFile)
+                                            Toast.makeText(context, "Archivo guardado con éxito: ${savedFile.name}", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Error al guardar el archivo", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("export_image_metadata_button")
+                                ) {
+                                    Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Guardar Imagen en Dispositivo", fontSize = 13.sp)
+                                }
+
+                                if (exportedExifSummary != null) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(
+                                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                                RoundedCornerShape(8.dp)
+                                            )
+                                            .padding(10.dp),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text(
+                                            text = "✅ Metadatos EXIF Estampados:",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        exportedExifSummary?.forEach { (tag, value) ->
+                                            Text(
+                                                text = "• $tag: $value",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
