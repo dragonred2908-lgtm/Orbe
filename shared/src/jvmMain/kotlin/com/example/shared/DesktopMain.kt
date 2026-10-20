@@ -1,6 +1,7 @@
 package com.example.shared
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
@@ -12,7 +13,8 @@ fun main() = application {
     Window(
         onCloseRequest = ::exitApplication,
         title = "IA Student — Asistente de Voz y Reconocimiento STT",
-        state = windowState
+        state = windowState,
+        icon = painterResource("icon.png")
     ) {
         DesktopAssistantScreen()
     }

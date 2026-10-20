@@ -199,20 +199,20 @@ fun DesktopInstallScreen(
 
                     when (selectedPlatform) {
                         PlatformType.WINDOWS -> {
-                            InstallationStepItem("1", "Método Nativo (Windows 11): Abre la aplicación con Windows Subsystem for Android (WSA) o arrastra el APK directamente.")
-                            InstallationStepItem("2", "Método Emulador Rápido: Ejecuta mediante BlueStacks, LDPlayer o el Emulador de Android Studio para PC.")
-                            InstallationStepItem("3", "Acceso Web Inmediato: Abre la URL compartida de esta app en Chrome o Edge y haz clic en 'Instalar aplicación' en la barra de direcciones.")
-                            InstallationStepItem("4", "Sincronizador de Archivos PC: Ejecuta el Companion Script en tu terminal de Windows para permitir búsquedas remotas de tus archivos.")
+                            InstallationStepItem("1", "Instalador Nativo / Compose Desktop: Ejecuta en PowerShell o CMD: 'python install_ia_student.py --desktop' o genera tu instalador '.msi' con '--package'.")
+                            InstallationStepItem("2", "Sincronizador Automático de Archivos: Corre 'python install_ia_student.py --server' para indexar y vincular tus carpetas con este teléfono.")
+                            InstallationStepItem("3", "Acceso Web Inmediato: Abre la URL compartida de esta app en Chrome o Edge e instala como PWA en tu PC.")
+                            InstallationStepItem("4", "Emulador / WSA: Abre el APK directamente con Windows Subsystem for Android o emulador.")
                         }
                         PlatformType.MACOS -> {
-                            InstallationStepItem("1", "Mac Apple Silicon (M1/M2/M3/M4): Abre el archivo de la aplicación directamente como app nativa en macOS.")
-                            InstallationStepItem("2", "Acceso Web PWA: Abre la URL del asistente en Safari o Chrome y selecciona 'Compartir' > 'Agregar al Dock'.")
-                            InstallationStepItem("3", "Sincronizador macOS: Ejecuta el script de enlace en la Terminal de Mac para indexar tus carpetas Documentos y Descargas.")
+                            InstallationStepItem("1", "App Nativa Compose (Apple Silicon / Intel): Ejecuta en Terminal 'python3 install_ia_student.py --desktop' o genera la imagen nativa '.dmg' con '--package'.")
+                            InstallationStepItem("2", "Sincronizador macOS: Corre 'python3 install_ia_student.py --server' para buscar remotamente en tus carpetas Documentos y Descargas.")
+                            InstallationStepItem("3", "Acceso Web PWA: Abre la URL del asistente en Safari o Chrome y selecciona 'Compartir' > 'Agregar al Dock'.")
                         }
                         PlatformType.LINUX -> {
-                            InstallationStepItem("1", "Método Waydroid / Anbox: En Ubuntu, Fedora, Debian o Arch, instala el paquete APK directamente en Waydroid.")
-                            InstallationStepItem("2", "Navegador de Escritorio: Accede desde Firefox o Chrome con soporte completo para pantalla completa y micrófono.")
-                            InstallationStepItem("3", "Sincronizador Linux: Corre el script Python en tu terminal para habilitar la búsqueda remota de archivos.")
+                            InstallationStepItem("1", "App Nativa de Escritorio Compose: Ejecuta en terminal 'python3 install_ia_student.py --desktop' o genera el paquete nativo '.deb' con '--package'.")
+                            InstallationStepItem("2", "Sincronizador Linux: Corre 'python3 install_ia_student.py --server' para habilitar la búsqueda remota de archivos.")
+                            InstallationStepItem("3", "Método Waydroid / APK: Instala el paquete APK directamente en Waydroid sobre Ubuntu, Debian, Fedora o Arch.")
                         }
                         PlatformType.ANDROID -> {
                             InstallationStepItem("1", "Instalación Directa: Instala el paquete APK en tu teléfono o tablet Android.")
@@ -228,7 +228,12 @@ fun DesktopInstallScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedButton(
-                            onClick = { showScriptDialog = true },
+                            onClick = {
+                                val pyCmd = if (selectedPlatform == PlatformType.WINDOWS) "python install_ia_student.py --full-install" else "python3 install_ia_student.py --full-install"
+                                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                cm.setPrimaryClip(ClipData.newPlainText("PythonCommand", pyCmd))
+                                Toast.makeText(context, "Comando copiado: $pyCmd", Toast.LENGTH_SHORT).show()
+                            },
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF00F0FF)),
                             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00F0FF)),
                             shape = RoundedCornerShape(10.dp),
@@ -236,7 +241,7 @@ fun DesktopInstallScreen(
                         ) {
                             Icon(Icons.Default.Terminal, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Ver Script PC", fontSize = 12.sp)
+                            Text("Copiar Comando Python", fontSize = 11.sp)
                         }
 
                         Button(

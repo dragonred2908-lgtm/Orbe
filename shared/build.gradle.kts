@@ -40,6 +40,13 @@ compose.desktop {
             packageVersion = "1.0.0"
             description = "IA Student Desktop Application"
             copyright = "Copyright (c) 2026 IA Student Contributors"
+
+            windows {
+                iconFile.set(project.file("src/jvmMain/resources/icon.ico"))
+            }
+            linux {
+                iconFile.set(project.file("src/jvmMain/resources/icon.png"))
+            }
         }
     }
 }

@@ -66,6 +66,36 @@ Ejecutar las pruebas unitarias y de Robolectric:
 
 ### 🖥️ Desktop (Windows, macOS, Linux)
 
+#### 🐍 Método Recomendado: Instalador Universal Python (Automatizado)
+El proyecto incluye un orquestador inteligente en Python (`install_ia_student.py`) que detecta automáticamente tu sistema operativo, verifica la presencia de Java 17+, configura `.env`, compila el proyecto y lanza el entorno sin configuraciones manuales:
+
+```bash
+# En Windows (PowerShell o CMD):
+python install_ia_student.py
+
+# En Linux o macOS (Terminal):
+python3 install_ia_student.py
+```
+
+Comandos directos por línea de comandos:
+```bash
+# 1. Diagnóstico completo de dependencias y red LAN:
+python3 install_ia_student.py --check
+
+# 2. Ejecutar la app de escritorio nativa:
+python3 install_ia_student.py --desktop
+
+# 3. Generar el instalador nativo (.deb en Linux, .msi en Windows, .dmg en macOS):
+python3 install_ia_student.py --package
+
+# 4. Iniciar el Servidor Compañero para vincular y buscar archivos desde Android:
+python3 install_ia_student.py --server
+
+# 5. Instalación y preparación completa de una sola vez:
+python3 install_ia_student.py --full-install
+```
+
+#### ⚙️ Método Tradicional con Gradle
 Compilar el módulo compartido y la versión Desktop:
 ```bash
 ./gradlew :shared:build
