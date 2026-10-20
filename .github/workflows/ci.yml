@@ -113,16 +113,16 @@ jobs:
       # Ejecución condicional en Unix vs Windows para máxima compatibilidad nativa
       - name: Build project (:app and :shared) [Unix]
         if: runner.os != 'Windows'
-        run: ./gradlew build --no-daemon
+        run: ./gradlew :app:assembleDebug :shared:build --no-daemon
 
       - name: Build project (:app and :shared) [Windows]
         if: runner.os == 'Windows'
-        run: .\gradlew.bat build --no-daemon
+        run: .\gradlew.bat :app:assembleDebug :shared:build --no-daemon
 
       - name: Run tests [Unix]
         if: runner.os != 'Windows'
-        run: ./gradlew test --no-daemon
+        run: ./gradlew :app:testDebugUnitTest :shared:jvmTest --no-daemon
 
       - name: Run tests [Windows]
         if: runner.os == 'Windows'
-        run: .\gradlew.bat test --no-daemon
+        run: .\gradlew.bat :app:testDebugUnitTest :shared:jvmTest --no-daemon
