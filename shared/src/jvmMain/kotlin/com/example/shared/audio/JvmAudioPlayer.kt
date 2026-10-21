@@ -28,14 +28,14 @@ class JvmAudioPlayer {
         }
 
         Thread({
-            try {
-                // Verificar si tiene cabecera RIFF WAV
-                val isWav = audioBytes.size >= 4 &&
-                    audioBytes[0] == 'R'.code.toByte() &&
-                    audioBytes[1] == 'I'.code.toByte() &&
-                    audioBytes[2] == 'F'.code.toByte() &&
-                    audioBytes[3] == 'F'.code.toByte()
+            // Verificar si tiene cabecera RIFF WAV (fuera del try: se usa tambien en el fallback)
+            val isWav = audioBytes.size >= 4 &&
+                audioBytes[0] == 'R'.code.toByte() &&
+                audioBytes[1] == 'I'.code.toByte() &&
+                audioBytes[2] == 'F'.code.toByte() &&
+                audioBytes[3] == 'F'.code.toByte()
 
+            try {
                 val wavData = if (isWav) audioBytes else WavUtils.createWavFile(audioBytes, sampleRate = 24000)
 
                 val bais = ByteArrayInputStream(wavData)
