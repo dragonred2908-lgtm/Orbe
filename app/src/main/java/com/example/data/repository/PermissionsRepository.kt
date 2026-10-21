@@ -85,14 +85,12 @@ class PermissionsRepository(context: Context) {
 
     fun togglePermission(key: String) {
         val current = _permissions.value
-        val updated = current.map {
-            if (it.key == key) {
-                val newVal = !it.isEnabled
-                prefs.edit().putBoolean(key, newVal).apply()
-                it.copy(isEnabled = newVal)
-            } else it
+        val item = current.find { it.key == key } ?: return
+        val newVal = !item.isEnabled
+        prefs.edit().putBoolean(key, newVal).apply()
+        _permissions.value = current.map {
+            if (it.key == key) it.copy(isEnabled = newVal) else it
         }
-        _permissions.value = updated
     }
 
     fun isPermissionGranted(key: String): Boolean {
@@ -100,10 +98,9 @@ class PermissionsRepository(context: Context) {
     }
 
     fun resetAllPermissions(enabled: Boolean = true) {
-        val updated = _permissions.value.map {
-            prefs.edit().putBoolean(it.key, enabled).apply()
-            it.copy(isEnabled = enabled)
-        }
-        _permissions.value = updated
+        val editor = prefs.edit()
+        _permissions.value.forEach { editor.putBoolean(it.key, enabled) }
+        editor.apply()
+        _permissions.value = _permissions.value.map { it.copy(isEnabled = enabled) }
     }
 }

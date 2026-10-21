@@ -34,7 +34,7 @@ class JvmAudioRecorder(
         return try {
             val info = DataLine.Info(TargetDataLine::class.java, format)
             AudioSystem.isLineSupported(info)
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             false
         }
     }
@@ -58,13 +58,20 @@ class JvmAudioRecorder(
 
             recordingThread = Thread({
                 val buffer = ByteArray(2048)
-                while (isRecording.get()) {
-                    val bytesRead = targetLine.read(buffer, 0, buffer.size)
-                    if (bytesRead > 0) {
-                        pcmStream.write(buffer, 0, bytesRead)
-                        val rms = WavUtils.calculateRms(buffer, bytesRead)
-                        onRmsLevel(rms)
+                try {
+                    while (isRecording.get()) {
+                        val bytesRead = targetLine.read(buffer, 0, buffer.size)
+                        if (bytesRead > 0) {
+                            pcmStream.write(buffer, 0, bytesRead)
+                            val rms = WavUtils.calculateRms(buffer, bytesRead)
+                            onRmsLevel(rms)
+                        }
                     }
+                } catch (e: IllegalStateException) {
+                    // La línea se cierra mientras read() está bloqueado durante
+                    // stopRecording(); es el flujo normal de parada, no un error.
+                } catch (e: Exception) {
+                    // Fallas del hardware de audio: terminar el hilo de forma limpia.
                 }
             }, "JvmAudioRecorderThread").apply {
                 isDaemon = true
@@ -72,7 +79,7 @@ class JvmAudioRecorder(
             }
 
             true
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             isRecording.set(false)
             false
         }
@@ -88,15 +95,15 @@ class JvmAudioRecorder(
         try {
             line?.stop()
             line?.close()
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             // Ignorar errores al cerrar línea de audio
         }
         line = null
 
         try {
             recordingThread?.join(500)
-        } catch (e: Throwable) {
-            // Ignorar interrupción
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
         }
         recordingThread = null
 

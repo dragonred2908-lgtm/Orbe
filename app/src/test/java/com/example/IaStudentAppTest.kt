@@ -12,7 +12,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+// SDK 36 (Baklava) requiere JDK 21 en Robolectric 4.16.x; la CI compila con JDK 17.
+// SDK 35 (VanillaIceCream) está soportado con JDK 17.
+@Config(sdk = [35])
 class IaStudentAppTest {
 
     @Test

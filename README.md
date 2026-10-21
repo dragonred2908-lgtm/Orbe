@@ -122,13 +122,12 @@ La aplicación aprovecha las capacidades multimodales de la familia de modelos d
 
 | Modelo | Capacidad / Tarea | Módulos |
 | :--- | :--- | :--- |
-| **`gemini-3.5-flash`** | Texto general, respuestas rápidas, asistente conversacional y orquestación | `:app` y `:shared` |
+| **`gemini-3.8-flash`** | Texto general, asistente conversacional y respuestas con Google Search/Maps Grounding | `:app` y `:shared` |
 | **`gemini-3.1-pro-preview`** | Razonamiento profundo, código, matemáticas y lógica de proyectos | `:app` y `:shared` |
-| **`gemini-3.8-flash`** | Respuestas actualizadas con Google Search Grounding y Google Maps | `:app` |
 | **`gemini-2.5-flash`** | Reconocimiento de voz (Speech-to-Text) multimodal sobre búfer WAV/PCM | `:app` y `:shared` |
 | **`gemini-2.5-flash-preview-tts`** | Síntesis de voz (Text-to-Speech) con voces personalizadas (ej. Kore) | `:app` |
 | **`gemini-nano-banana-2.1`** | Generación y retoque de imágenes por prompt en proporciones 1:1, 16:9 y 9:16 | `:app` |
-| **`veo-3.1-fast-generate-preview`** | Generación de video cinemático y animación imagen-a-video (720p) | `:app` |
+| **`gemini-omni-1.1-flash`** | Generación de video cinemático (Interactions API, MP4 inline, 9:16/16:9) | `:app` |
 | **`lyria-3-clip-preview`** | Generación de pistas musicales y clips de audio instrumental | `:app` |
 
 ---

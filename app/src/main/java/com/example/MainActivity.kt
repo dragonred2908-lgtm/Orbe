@@ -129,7 +129,6 @@ fun MainAppScaffold(
     BackHandler(enabled = currentScreen != Screen.QuantumOrb) {
         currentScreen = Screen.QuantumOrb
     }
-
     when (currentScreen) {
         // --- 1. PANTALLA PRINCIPAL: ÚNICAMENTE EL ORBE CIAN EN PANTALLA COMPLETA ---
         Screen.QuantumOrb -> {
@@ -189,6 +188,7 @@ fun MainAppScaffold(
                             ChatScreen(
                                 apiClient = apiClient,
                                 audioPlayer = audioPlayer,
+                                initialPrompt = initialChatPrompt,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }

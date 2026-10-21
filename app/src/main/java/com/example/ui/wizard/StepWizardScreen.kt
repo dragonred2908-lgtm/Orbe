@@ -739,7 +739,8 @@ val request = GenerateContentRequest(
 val response = RetrofitClient.service.generateContent(apiKey, request)
                     """.trimIndent()
                     2 -> """
-curl "https://generativelanguage.googleapis.com/v1beta/models/$selectedModel:generateContent?key=${'$'}GEMINI_API_KEY" \
+curl "https://generativelanguage.googleapis.com/v1beta/models/$selectedModel:generateContent" \
+  -H "x-goog-api-key: ${'$'}GEMINI_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{
     "contents": [{"parts": [{"text": "Hola"}]}],
@@ -749,9 +750,9 @@ curl "https://generativelanguage.googleapis.com/v1beta/models/$selectedModel:gen
                     """.trimIndent()
                     else -> """
 // JavaScript / Web Fetch
-const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/$selectedModel:generateContent?key=${'$'}{API_KEY}`, {
+const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/$selectedModel:generateContent`, {
   method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
+  headers: { 'Content-Type': 'application/json', 'x-goog-api-key': ${'$'}{API_KEY} },
   body: JSON.stringify({
     contents: [{ parts: [{ text: "Hola" }] }],
     systemInstruction: { parts: [{ text: "$systemPrompt" }] },

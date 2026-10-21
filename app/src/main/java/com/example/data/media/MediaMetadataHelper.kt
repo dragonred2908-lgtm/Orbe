@@ -2,6 +2,7 @@ package com.example.data.media
 
 import android.content.Context
 import android.util.Base64
+import android.util.Log
 import androidx.exifinterface.media.ExifInterface
 import java.io.File
 import java.io.FileOutputStream
@@ -14,6 +15,8 @@ object MediaMetadataHelper {
     const val DEFAULT_SOFTWARE = "IA Student Multiplatform v1.0.0"
     const val DEFAULT_COPYRIGHT = "Copyright (c) 2026 IA Student. Licenciado bajo Apache-2.0"
     const val DEFAULT_LICENSE_URL = "https://www.apache.org/licenses/LICENSE-2.0"
+
+    private const val TAG = "MediaMetadataHelper"
 
     /**
      * Inyecta metadatos EXIF estándar en un archivo de imagen existente.
@@ -42,7 +45,7 @@ object MediaMetadataHelper {
             exif.saveAttributes()
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.w(TAG, "No se pudieron inyectar los metadatos EXIF", e)
             false
         }
     }
@@ -75,7 +78,7 @@ object MediaMetadataHelper {
 
             outputFile
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.w(TAG, "Error guardando imagen con metadatos", e)
             null
         }
     }
@@ -94,7 +97,7 @@ object MediaMetadataHelper {
             exif.getAttribute(ExifInterface.TAG_USER_COMMENT)?.let { result["Comentarios"] = it }
             exif.getAttribute(ExifInterface.TAG_DATETIME)?.let { result["Fecha"] = it }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.w(TAG, "Error leyendo metadatos EXIF", e)
         }
         return result
     }

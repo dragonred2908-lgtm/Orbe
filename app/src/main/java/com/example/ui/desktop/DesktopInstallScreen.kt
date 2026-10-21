@@ -260,6 +260,20 @@ fun DesktopInstallScreen(
                             Text("Copiar Link PC", fontSize = 12.sp)
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedButton(
+                        onClick = { showScriptDialog = true },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF238636)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF238636)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Code, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Ver / Copiar Script Seguro del Servidor", fontSize = 12.sp)
+                    }
                 }
             }
         }
@@ -309,7 +323,7 @@ fun DesktopInstallScreen(
             text = {
                 Column {
                     Text(
-                        "Ejecuta este script en tu PC con 'python3 companion_server.py'. Expondrá la búsqueda de archivos para que tu asistente móvil pueda buscar en tu PC:",
+                        "Este script seguro corre en 127.0.0.1 (localhost), requiere un token Bearer y solo devuelve metadatos. Ejecútalo en tu PC con 'python3 companion_server.py':",
                         color = Color(0xFF8B949E),
                         fontSize = 12.sp
                     )

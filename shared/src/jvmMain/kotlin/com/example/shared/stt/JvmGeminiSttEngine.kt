@@ -61,7 +61,7 @@ class JvmGeminiSttEngine(
                     }
                 }
             }
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             // Ignorar lectura si no se encuentra
         }
 
@@ -87,8 +87,9 @@ class JvmGeminiSttEngine(
         try {
             val base64Audio = Base64.getEncoder().encodeToString(audioBytes)
 
-            // Usamos gemini-2.5-flash para transcripción multimodal de audio
-            val endpoint = "$baseUrl/models/gemini-2.5-flash:generateContent?key=$apiKey"
+            // Nota: la clave viaja en el encabezado 'x-goog-api-key' (nunca en la URL)
+            // para evitar su filtración en logs de proxy o historial.
+            val endpoint = "$baseUrl/models/gemini-2.5-flash:generateContent"
 
             val jsonPayload = """
             {
@@ -117,6 +118,7 @@ class JvmGeminiSttEngine(
             val request = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
                 .header("Content-Type", "application/json; charset=utf-8")
+                .header("x-goog-api-key", apiKey)
                 .timeout(Duration.ofSeconds(60))
                 .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
                 .build()
@@ -135,7 +137,9 @@ class JvmGeminiSttEngine(
                 val errorMsg = extractErrorMessage(response.body(), response.statusCode())
                 Result.failure(RuntimeException("Error en API STT (${response.statusCode()}): $errorMsg"))
             }
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
+            // Re-lanzar la cancelación de la corrutina: nunca debe tragarse.
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(e)
         }
     }
@@ -156,8 +160,9 @@ class JvmGeminiSttEngine(
         }
 
         try {
-            val modelName = config.model.ifBlank { "gemini-3.5-flash" }
-            val endpoint = "$baseUrl/models/$modelName:generateContent?key=$apiKey"
+            val modelName = config.model.ifBlank { "gemini-3.8-flash" }
+            // Key en encabezado 'x-goog-api-key' (nunca en query string)
+            val endpoint = "$baseUrl/models/$modelName:generateContent"
 
             val escapedQuery = escapeJsonString(query)
             val escapedInstruction = escapeJsonString(config.systemInstruction)
@@ -187,6 +192,7 @@ class JvmGeminiSttEngine(
             val request = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
                 .header("Content-Type", "application/json; charset=utf-8")
+                .header("x-goog-api-key", apiKey)
                 .timeout(Duration.ofSeconds(60))
                 .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
                 .build()
@@ -200,7 +206,8 @@ class JvmGeminiSttEngine(
                 val errorMsg = extractErrorMessage(response.body(), response.statusCode())
                 Result.failure(RuntimeException("Error Gemini API (${response.statusCode()}): $errorMsg"))
             }
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(e)
         }
     }

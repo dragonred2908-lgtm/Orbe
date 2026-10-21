@@ -95,9 +95,10 @@ class JvmVoiceAssistantController(
                     session.processTranscribedText(transcribedText)
                 },
                 onFailure = { error ->
-                    _statusNotice.value = "Error STT: ${error.message}"
-                    // Si falla la API STT (ej: sin clave configurada en offline), ofrecer sugerencia
-                    session.processTranscribedText("${session.config.value.wakePhrase}, ¿qué es IA Student?")
+                    // NO se sustituye el transcripto por una pregunta inventada:
+                    // el usuario nunca recibiría una respuesta real a algo que no dijo.
+                    _statusNotice.value = "Error de transcripción (STT): ${error.message}"
+                    session.setListeningForWakePhrase()
                 }
             )
         }

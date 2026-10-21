@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Directorio de videos generados con Gemini Omni Flash (getExternalFilesDir) -->
+    <external-files-path
+        name="generated_media"
+        path="." />
+    <files-path
+        name="internal_files"
+        path="." />
+</paths>

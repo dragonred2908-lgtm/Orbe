@@ -83,6 +83,7 @@ PASO 5 — PRUEBAS Y AJUSTES
 fun ChatScreen(
     apiClient: GeminiApiClient,
     audioPlayer: AudioPlayerHelper,
+    initialPrompt: String? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -114,7 +115,7 @@ Estoy aquí para guiarte en la creación de aplicaciones, chatbots, flujos de tr
         )
     }
 
-    var inputText by remember { mutableStateOf("") }
+    var inputText by remember { mutableStateOf(initialPrompt.orEmpty()) }
     var isLoading by remember { mutableStateOf(false) }
     var selectedModel by remember { mutableStateOf(GeminiModels.FLASH.id) }
     var useSearchGrounding by remember { mutableStateOf(false) }
@@ -188,6 +189,21 @@ Estoy aquí para guiarte en la creación de aplicaciones, chatbots, flujos de tr
             messages = messages + studentMessage
             isLoading = false
             listState.animateScrollToItem(messages.size)
+        }
+    }
+
+    // Auto-envía el prompt inicial entrante de otra pantalla (Buscador, Wizard,
+    // Centro de Conocimiento o Proyectos). Se ejecuta una sola vez y solo si el
+    // usuario no ha escrito ya algo por su cuenta.
+    var initialPromptConsumed by remember { mutableStateOf(false) }
+    LaunchedEffect(initialPrompt) {
+        if (!initialPromptConsumed &&
+            !initialPrompt.isNullOrBlank() &&
+            inputText.isNotBlank() &&
+            !isLoading
+        ) {
+            initialPromptConsumed = true
+            sendMessage(initialPrompt)
         }
     }
 

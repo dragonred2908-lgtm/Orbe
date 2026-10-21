@@ -37,14 +37,24 @@ class FileSearchRepository(private val context: Context) {
         val results = mutableListOf<ManagedFileItem>()
         val cleanQuery = query.trim().lowercase()
 
-        // 1. Archivos locales reales del dispositivo (App internal / external storage)
+        // 1. Archivos locales reales del dispositivo (App internal / external storage).
+        // Si el usuario define una Ruta Personalizada, se usa como raíz de la búsqueda local
+        // instead of las carpetas por defecto (respetando las restricciones del sandbox).
         try {
-            val localDirs = listOfNotNull(
-                context.getExternalFilesDir(null),
-                context.filesDir,
-                context.cacheDir,
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            )
+            val customDir = customPath?.takeIf { it.isNotBlank() }?.let { path ->
+                runCatching { File(path) }.getOrNull()
+                    ?.takeIf { it.exists() && it.isDirectory && it.canRead() }
+            }
+            val localDirs: List<File> = if (customDir != null) {
+                listOf(customDir)
+            } else {
+                listOfNotNull(
+                    context.getExternalFilesDir(null),
+                    context.filesDir,
+                    context.cacheDir,
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                )
+            }
 
             localDirs.forEach { dir ->
                 if (dir.exists() && dir.isDirectory) {
@@ -61,7 +71,7 @@ class FileSearchRepository(private val context: Context) {
                                         sizeStr = formatFileSize(file.length()),
                                         extension = file.extension.uppercase(),
                                         isDirectory = false,
-                                        locationType = "Móvil Local",
+                                        locationType = if (customDir != null) "Ruta Personalizada" else "Móvil Local",
                                         lastModified = formatTimestamp(file.lastModified())
                                     )
                                 )
@@ -70,6 +80,8 @@ class FileSearchRepository(private val context: Context) {
                     }
                 }
             }
+        } catch (e: SecurityException) {
+            // Sin READ_MEDIA_* concedido: el sandbox limita las rutas accesibles.
         } catch (e: Exception) {
             // Manejo silencioso de restricciones de sandbox
         }

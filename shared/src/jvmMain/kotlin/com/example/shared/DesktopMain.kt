@@ -41,7 +41,7 @@ fun runDesktopApplication() = application {
         useResource("icon.png") { inputStream ->
             BitmapPainter(loadImageBitmap(inputStream))
         }
-    } catch (_: Throwable) {
+    } catch (_: Exception) {
         null
     }
 

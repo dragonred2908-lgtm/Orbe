@@ -51,18 +51,21 @@ class JvmAudioPlayer {
                         isPlaying.set(false)
                         try {
                             clip.close()
-                        } catch (_: Throwable) {}
+                        } catch (_: Exception) {}
                         onCompletion()
                     }
                 }
 
                 clip.open(audioStream)
                 clip.start()
-            } catch (e: Throwable) {
-                // Fallback directo a SourceDataLine para streaming de PCM
+            } catch (e: Exception) {
+                // Fallback directo a SourceDataLine para streaming de PCM.
+                // Si el audio entrante ya era WAV, se descarta la cabecera para no
+                // reproducir los primeros 44 bytes como PCM crudo (click audible).
+                val pcmOnly = if (isWav) audioBytes.copyOfRange(minOf(44, audioBytes.size), audioBytes.size) else audioBytes
                 try {
-                    playViaSourceDataLine(audioBytes, onCompletion)
-                } catch (ex: Throwable) {
+                    playViaSourceDataLine(pcmOnly, onCompletion)
+                } catch (ex: Exception) {
                     isPlaying.set(false)
                     onCompletion()
                 }
@@ -100,13 +103,13 @@ class JvmAudioPlayer {
         try {
             currentClip?.stop()
             currentClip?.close()
-        } catch (_: Throwable) {}
+        } catch (_: Exception) {}
         currentClip = null
 
         try {
             currentLine?.stop()
             currentLine?.close()
-        } catch (_: Throwable) {}
+        } catch (_: Exception) {}
         currentLine = null
     }
 

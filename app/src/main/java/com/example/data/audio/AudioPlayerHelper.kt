@@ -27,6 +27,9 @@ import java.util.UUID
  */
 class AudioPlayerHelper(private val context: Context) {
     private var mediaPlayer: MediaPlayer? = null
+
+    // Archivo temporal del TTS actual; se borra al detener para no acumular .wav en cacheDir
+    private var currentTempFile: File? = null
     private var audioTrack: AudioTrack? = null
     private var textToSpeech: TextToSpeech? = null
     private var isTtsReady: Boolean = false
@@ -172,6 +175,7 @@ class AudioPlayerHelper(private val context: Context) {
         // 2. Intentar reproducir con MediaPlayer
         try {
             val tempFile = File.createTempFile("tts_audio_", ".wav", context.cacheDir)
+            currentTempFile = tempFile
             FileOutputStream(tempFile).use { fos ->
                 fos.write(playableBytes)
                 fos.flush()
@@ -214,6 +218,8 @@ class AudioPlayerHelper(private val context: Context) {
         } catch (e: Exception) {
             Log.w(TAG, "Excepción en MediaPlayer.prepareAsync (${e.message}). Activando fallback AudioTrack...")
             cleanUpMediaPlayer()
+            try { currentTempFile?.delete() } catch (_: Exception) {}
+            currentTempFile = null
             fallbackPlayWithAudioTrack(bytes, onCompletion)
         }
     }
@@ -336,6 +342,10 @@ class AudioPlayerHelper(private val context: Context) {
             Log.w(TAG, "Error limpiando MediaPlayer", e)
         } finally {
             mediaPlayer = null
+            currentTempFile?.let { tf ->
+                try { tf.delete() } catch (_: Exception) {}
+            }
+            currentTempFile = null
         }
     }
 

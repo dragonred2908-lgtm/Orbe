@@ -496,27 +496,57 @@ class GeminiApiClient {
         }
 
         try {
+            // Migrado de Veo 3.1 (retirado el 22-oct-2026) a Gemini Omni Flash (Interactions API).
+            // Respuesta síncrona: el MP4 llega inline en Base64.
             val jsonRoot = JSONObject()
-            jsonRoot.put("prompt", prompt)
+            jsonRoot.put("model", "gemini-omni-1.1-flash")
+            jsonRoot.put("input", prompt)
 
-            val config = JSONObject()
-            config.put("numberOfVideos", 1)
-            config.put("resolution", "720p")
-            config.put("aspectRatio", aspectRatio)
-            jsonRoot.put("config", config)
+            val responseFormat = JSONObject()
+            responseFormat.put("type", "video")
+            // Valores soportados: "9:16" y "16:9"
+            responseFormat.put("aspect_ratio", aspectRatio)
+            jsonRoot.put("response_format", responseFormat)
 
-            val endpoint = "$baseUrl/models/veo-3.1-fast-generate-preview:generateVideos"
+            val endpoint = "$baseUrl/interactions"
             val request = buildSecureRequest(endpoint, jsonRoot.toString(), apiKey)
 
             val (code, body) = executeWithRetry(request)
 
             if (code !in 200..299) {
-                return@withContext VideoResult(error = "Veo Error $code: $body")
+                return@withContext VideoResult(error = "Omni Flash Error $code: $body")
             }
 
             val respJson = JSONObject(body)
-            val operationName = respJson.optString("name", "Operación iniciada con éxito")
-            VideoResult(operationName = operationName, message = "Generación de video iniciada en Veo 3.1 ($aspectRatio). Operación: $operationName")
+            var videoBase64: String? = null
+            var mimeType = "video/mp4"
+
+            val steps = respJson.optJSONArray("steps")
+            if (steps != null) {
+                for (i in 0 until steps.length()) {
+                    val step = steps.optJSONObject(i) ?: continue
+                    if (step.optString("type") != "model_output") continue
+                    val contents = step.optJSONArray("content") ?: continue
+                    for (j in 0 until contents.length()) {
+                        val c = contents.optJSONObject(j) ?: continue
+                        if (c.optString("type") == "video") {
+                            videoBase64 = c.optString("data")
+                            mimeType = c.optString("mime_type", "video/mp4")
+                            break
+                        }
+                    }
+                    if (videoBase64 != null) break
+                }
+            }
+
+            if (!videoBase64.isNullOrBlank()) {
+                VideoResult(
+                    videoBase64 = videoBase64,
+                    message = "Video MP4 ($mimeType) generado con Gemini Omni Flash ($aspectRatio)."
+                )
+            } else {
+                VideoResult(error = "El modelo no devolvió datos de video. Estado: ${respJson.optString("status", "unknown")}")
+            }
         } catch (e: Exception) {
             VideoResult(error = e.message)
         }
@@ -656,7 +686,9 @@ data class ImageResult(
 )
 
 data class VideoResult(
+    @Deprecated("Omni Flash entrega el video inline; el campo se mantiene por compatibilidad retroactiva.")
     val operationName: String? = null,
+    val videoBase64: String? = null,
     val message: String? = null,
     val error: String? = null
 )

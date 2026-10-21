@@ -1,8 +1,11 @@
 package com.example.ui.multimodal
 
+import android.content.Intent
 import android.graphics.BitmapFactory
+import android.net.Uri
 import android.util.Base64
 import android.widget.Toast
+import androidx.core.content.FileProvider
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -35,6 +38,7 @@ import com.example.data.media.MediaMetadataHelper
 import com.example.ui.theme.GeminiAmber
 import com.example.ui.theme.GeminiViolet
 import kotlinx.coroutines.launch
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -419,11 +423,13 @@ fun ImageLabSection(apiClient: GeminiApiClient) {
 
 @Composable
 fun VideoLabSection(apiClient: GeminiApiClient) {
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var prompt by remember { mutableStateOf("Un dron de Google sobrevolando una ciudad futurista con rascacielos holográficos al atardecer") }
     var selectedRatio by remember { mutableStateOf("16:9") } // 16:9 or 9:16
     var isGenerating by remember { mutableStateOf(false) }
     var operationResult by remember { mutableStateOf<String?>(null) }
+    var videoPath by remember { mutableStateOf<String?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     Card(
@@ -434,10 +440,10 @@ fun VideoLabSection(apiClient: GeminiApiClient) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Movie, contentDescription = null, tint = GeminiViolet)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("🎬 Generación de Video con Veo 3.1", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text("🎬 Generación de Video con Gemini Omni Flash", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
             }
             Text(
-                "Modelo: veo-3.1-fast-generate-preview. Genera clips a partir de descripciones textuales o animación de fotos.",
+                "Modelo: gemini-omni-1.1-flash (Interactions API). Genera clips MP4 a partir de descripciones textuales; la respuesta es síncrona con el video inline.",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -445,7 +451,7 @@ fun VideoLabSection(apiClient: GeminiApiClient) {
             OutlinedTextField(
                 value = prompt,
                 onValueChange = { prompt = it },
-                label = { Text("Prompt para Veo 3.1") },
+                label = { Text("Prompt para Omni Flash") },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2
             )
@@ -471,10 +477,23 @@ fun VideoLabSection(apiClient: GeminiApiClient) {
                         errorMessage = null
                         operationResult = null
                         val res = apiClient.generateVideo(prompt, selectedRatio)
-                        if (res.message != null) {
-                            operationResult = res.message
+                        val contextForVideo = context
+                        if (res.videoBase64 != null) {
+                            try {
+                                val dir = contextForVideo.getExternalFilesDir(null)?.resolve("Videos")
+                                    ?: contextForVideo.filesDir.resolve("Videos")
+                                dir.mkdirs()
+                                val outFile = File(dir, "omni_${System.currentTimeMillis()}.mp4")
+                                outFile.writeBytes(Base64.decode(res.videoBase64, Base64.DEFAULT))
+                                videoPath = outFile.absolutePath
+                                operationResult = (res.message ?: "Video generado.") +
+                                    "\nGuardado en: ${outFile.absolutePath}"
+                            } catch (e: Exception) {
+                                operationResult = res.message
+                                Toast.makeText(contextForVideo, "No se pudo guardar el video: ${e.message}", Toast.LENGTH_LONG).show()
+                            }
                         } else {
-                            errorMessage = res.error ?: "Error al iniciar generación de video."
+                            errorMessage = res.error ?: "Error al generar el video."
                         }
                         isGenerating = false
                     }
@@ -485,11 +504,35 @@ fun VideoLabSection(apiClient: GeminiApiClient) {
                 if (isGenerating) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onPrimary)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Iniciando generación en Veo...")
+                    Text("Generando video con Omni Flash...")
                 } else {
                     Icon(Icons.Default.VideoCall, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Generar Video en Veo ($selectedRatio)")
+                    Text("Generar Video ($selectedRatio)")
+                }
+            }
+
+            if (videoPath != null) {
+                OutlinedButton(
+                    onClick = {
+                        val contextForIntent = context
+                        val file = File(videoPath!!)
+                        val uri = FileProvider.getUriForFile(
+                            contextForIntent,
+                            "${contextForIntent.packageName}.fileprovider",
+                            file
+                        )
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, "video/mp4")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        contextForIntent.startActivity(intent)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Abrir Video")
                 }
             }
 

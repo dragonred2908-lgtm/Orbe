@@ -10,7 +10,11 @@ class ProjectRepository(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("ia_student_projects", Context.MODE_PRIVATE)
 
     fun getSavedProjects(): List<ProjectRecord> {
-        val jsonStr = prefs.getString("projects_list", null) ?: return getInitialSeedProjects()
+        val jsonStr = try {
+            prefs.getString("projects_list", null)
+        } catch (e: Exception) {
+            null
+        } ?: return getInitialSeedProjects()
         return try {
             val arr = JSONArray(jsonStr)
             val list = mutableListOf<ProjectRecord>()
@@ -35,9 +39,12 @@ class ProjectRepository(context: Context) {
                     )
                 )
             }
-            if (list.isEmpty()) getInitialSeedProjects() else list
+            // Solo usa la lista de semillas la primera vez (sin preferencias creadas).
+            // Si el usuario borró todos sus proyectos ("[]"), respeta esa lista vacía.
+            list
         } catch (e: Exception) {
-            getInitialSeedProjects()
+            // JSON corrupto: restaurar semillas y sobrescribir el estado inválido.
+            getInitialSeedProjects().also { saveAll(it) }
         }
     }
 

@@ -21,7 +21,10 @@ object DesktopMediaMetadataHelper {
         includeMetadata: Boolean = true
     ): Pair<File, File?> {
         if (!targetDirectory.exists()) {
-            targetDirectory.mkdirs()
+            val created = targetDirectory.mkdirs()
+            if (!created && !targetDirectory.isDirectory) {
+                throw java.io.IOException("No se pudo crear el directorio destino: ${targetDirectory.path}")
+            }
         }
 
         val mediaFile = File(targetDirectory, baseFileName)
@@ -33,16 +36,18 @@ object DesktopMediaMetadataHelper {
             val metaFileName = "$baseFileName.meta.json"
             metadataFile = File(targetDirectory, metaFileName)
 
+            // Todos los campos interpolados se escapan: un nombre de archivo con
+            // comillas o saltos de línea producía JSON inválido.
             val jsonContent = """
 {
   "${'$'}schema": "https://json-schema.org/draft/2020-12/schema",
-  "id": "${metadata.id}",
-  "fileName": "${metadata.fileName}",
-  "format": "${metadata.format}",
+  "id": "${escapeJson(metadata.id)}",
+  "fileName": "${escapeJson(metadata.fileName)}",
+  "format": "${escapeJson(metadata.format)}",
   "author": "${escapeJson(metadata.author)}",
   "prompt": "${escapeJson(metadata.prompt)}",
   "copyright": "${escapeJson(metadata.copyright)}",
-  "license": "${metadata.licenseUrl}",
+  "license": "${escapeJson(metadata.licenseUrl)}",
   "generator": "${escapeJson(metadata.generator)}",
   "createdDate": "$isoDate",
   "metadataStandard": "EXIF/XMP Sidecar Compliant"
@@ -58,6 +63,9 @@ object DesktopMediaMetadataHelper {
     private fun escapeJson(text: String): String {
         return text.replace("\\", "\\\\")
             .replace("\"", "\\\"")
+            .replace("\t", "\\t")
+            .replace("\b", "\\b")
+            .replace("\u000C", "\\f")
             .replace("\n", "\\n")
             .replace("\r", "\\r")
     }

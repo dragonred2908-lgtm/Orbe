@@ -23,7 +23,8 @@ data class VoiceConfig(
     val matchContains: Boolean = true,
     val autoRestartListening: Boolean = true,
     val geminiApiKey: String = "",
-    val model: String = "gemini-3.5-flash",
+    // Nota: "gemini-3.5-flash" no existe en la API de Gemini; el id estable es gemini-3.8-flash.
+    val model: String = "gemini-3.8-flash",
     val languageCode: String = "es-ES",
     val systemInstruction: String = "Eres Aura (IA Student), una asistente educativa y técnica inteligente, amigable, precisa y de alta tecnología. Responde en español de forma concisa y clara a las consultas del usuario."
 )

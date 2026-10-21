@@ -276,7 +276,7 @@ def package_native(root_dir: Path, os_info: dict):
         log_error(f"Error al empaquetar instalador nativo: {e}")
 
 
-def run_companion_server(root_dir: Path, port: int = 8080):
+def run_companion_server(root_dir: Path, port: int = 8080, lan: bool = False):
     """Lanza el servidor compañero para sincronización y búsqueda remota."""
     companion_script = root_dir / "app" / "src" / "main" / "assets" / "companion_server.py"
     if not companion_script.exists():
@@ -287,13 +287,24 @@ def run_companion_server(root_dir: Path, port: int = 8080):
     log_info("Iniciando Servidor Compañero de IA Student...")
     print(f"\n{CLR_BOLD}{CLR_CYAN}════════════════════════════════════════════════════════════════{CLR_RESET}")
     print(f"{CLR_BOLD}📱 DATOS PARA EMPAREJAR CON LA APLICACIÓN ANDROID:{CLR_RESET}")
-    print(f"   • Host / Dirección IP:  {CLR_GREEN}{CLR_BOLD}{local_ip}{CLR_RESET}")
+    if lan:
+        print(f"   • Host / Dirección IP:  {CLR_GREEN}{CLR_BOLD}{local_ip}{CLR_RESET}")
+        print(f"   ℹ️  Escuchando en 0.0.0.0 (accesible desde la red LAN)")
+    else:
+        print(f"   • Host / Dirección IP:  {CLR_GREEN}{CLR_BOLD}127.0.0.1{CLR_RESET} (solo localhost)")
+        print(f"   ⚠️  El emparejamiento desde el móvil requiere red local.")
+        print(f"   ⚠️  Ejecuta con --lan para permitir conexiones externas (0.0.0.0).")
     print(f"   • Puerto de Escucha:   {CLR_GREEN}{CLR_BOLD}{port}{CLR_RESET}")
-    print(f"   • URL Completa:        {CLR_CYAN}http://{local_ip}:{port}{CLR_RESET}")
+    if lan:
+        print(f"   • URL Completa:        {CLR_CYAN}http://{local_ip}:{port}{CLR_RESET}")
     print(f"{CLR_BOLD}{CLR_CYAN}════════════════════════════════════════════════════════════════{CLR_RESET}\n")
 
     env = os.environ.copy()
-    env["COMPANION_BIND_HOST"] = "0.0.0.0"
+    if lan:
+        # Exposición a la LAN solo bajo petición explícita del usuario.
+        env["COMPANION_BIND_HOST"] = "0.0.0.0"
+    else:
+        env["COMPANION_BIND_HOST"] = "127.0.0.1"
     env["COMPANION_PORT"] = str(port)
 
     try:
@@ -312,6 +323,7 @@ def main():
     parser.add_argument("--package", action="store_true", help="Generar instalador nativo (.deb / .msi / .dmg).")
     parser.add_argument("--server", action="store_true", help="Iniciar el Servidor Compañero en PC.")
     parser.add_argument("--port", type=int, default=8080, help="Puerto del Servidor Compañero (por defecto: 8080).")
+    parser.add_argument("--lan", action="store_true", help="Permitir conexiones desde la red local (0.0.0.0). Por defecto solo escucha en 127.0.0.1.")
     parser.add_argument("--full-install", action="store_true", help="Ejecutar diagnóstico y preparar todo el sistema.")
 
     args = parser.parse_args()
@@ -331,7 +343,7 @@ def main():
         package_native(root_dir, os_info)
         return
     elif args.server:
-        run_companion_server(root_dir, args.port)
+        run_companion_server(root_dir, args.port, lan=args.lan)
         return
     elif args.full_install:
         ok = run_diagnostics(root_dir, os_info)

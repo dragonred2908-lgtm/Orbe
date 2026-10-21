@@ -165,63 +165,167 @@ class CrossPlatformRepository(context: Context) {
     }
 
     /**
-     * Script compañero para PC (Windows .bat / PowerShell, macOS / Linux bash)
-     * Permite ejecutar un servidor de sincronización y búsqueda de archivos con 1 solo comando.
+     * Script compañero para PC (Windows .bat / PowerShell, macOS / Linux bash).
+     * Endurecido con las mismas protecciones que el servidor oficial empaquetado
+     * en `app/src/main/assets/companion_server.py`:
+     *   - Enlace por defecto SOLO en 127.0.0.1 (la LAN requiere variables de entorno explícitas).
+     *   - Autenticación obligatoria por Bearer Token (generado criptográficamente al iniciar).
+     *   - Validación/canonicalización de rutas y bloqueo de secretos sensibles.
+     *   - Solo metadatos, máximo 25 resultados, CORS sin wildcard.
      */
     fun getPythonDesktopCompanionScript(): String {
         return """
-# Companion Server de Sincronizacion Remota para PC (Windows, Mac, Linux)
-# Ejecuta este script en tu PC para permitir que el asistente busque archivos remotamente:
-# python3 companion_server.py
+# Companion Server Seguro de Sincronizacion Remota para PC (Windows, Mac, Linux)
+# Ejecutalo en tu PC con: python3 companion_server.py
+#
+# Seguridad: escucha en 127.0.0.1 (localhost). No expone tu equipo en la red.
+# El TOKEN se genera aleatoriamente en cada inicio y es necesario para cada peticion.
 
 import http.server
-import socketserver
 import os
-import json
+import secrets
 import socket
+import sys
 
 PORT = 8080
 SYNC_CODE = "${_syncCode.value}"
+# De 25 a 25 resultados como maximo; nunca se devuelve el contenido de los archivos.
+MAX_RESULTS_LIMIT = 25
+AUTH_TOKEN = os.environ.get("COMPANION_AUTH_TOKEN", "").strip() or secrets.token_hex(24)
 
-class RemoteSearchHandler(http.server.SimpleHTTPRequestHandler):
-    def do_POST(self):
-        if self.path == '/search':
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length)
-            req = json.loads(post_data.decode('utf-8'))
-            query = req.get('query', '').lower()
-            base_dir = req.get('path', os.path.expanduser('~'))
-            
-            results = []
-            for root, dirs, files in os.walk(base_dir):
-                for file in files:
-                    if query in file.lower():
-                        full_path = os.path.join(root, file)
-                        results.append({
-                            'name': file,
-                            'path': full_path,
-                            'size': f"{os.path.getsize(full_path) // 1024} KB",
-                            'type': os.path.splitext(file)[1]
-                        })
-                if len(results) >= 25:
-                    break
-                    
+USER_HOME = os.path.realpath(os.path.abspath(os.path.expanduser('~')))
+BLOCKED_PATTERNS = {
+    ".ssh", ".gnupg", ".aws", ".config", ".env", ".git", ".password-store",
+    "id_rsa", "id_ed25519", "known_hosts", "authorized_keys", ".bash_history",
+    ".zsh_history", "credentials", "secrets.json", "keystore.jks"
+}
+
+
+def is_path_safe(target_path):
+    real_path = os.path.realpath(os.path.abspath(target_path))
+    if not (real_path == USER_HOME or real_path.startswith(USER_HOME + os.sep)):
+        return False
+    for part in real_path.split(os.sep):
+        if part.lower() in BLOCKED_PATTERNS:
+            return False
+    return True
+
+
+class SecureHandler(http.server.BaseHTTPRequestHandler):
+    def log_message(self, fmt, *args):
+        print("[companion] " + (fmt % args))
+
+    def _send_json(self, code, payload):
+        import json
+        encoded = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def _authenticated(self):
+        header_auth = (self.headers.get("Authorization") or "").strip()
+        header_custom = (self.headers.get("X-Companion-Token") or "").strip()
+        token = ""
+        if header_auth.startswith("Bearer "):
+            token = header_auth[7:].strip()
+        elif header_custom:
+            token = header_custom
+        return bool(token) and secrets.compare_digest(token, AUTH_TOKEN)
+
+    def do_GET(self):
+        if self.path == "/status":
+            if not self._authenticated():
+                return self._send_json(401, {"status": "error", "message": "Token invalido o ausente"})
+            import json, platform as plat
+            info = json.dumps({
+                "status": "online",
+                "hostname": socket.gethostname(),
+                "platform": plat.system(),
+                "max_results": MAX_RESULTS_LIMIT
+            }, ensure_ascii=False).encode("utf-8")
             self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(info)))
             self.end_headers()
-            self.wfile.write(json.dumps({'results': results}).encode('utf-8'))
-        else:
-            self.send_response(404)
-            self.end_headers()
+            self.wfile.write(info)
+            return
+        self._send_json(404, {"status": "error", "message": "Ruta no encontrada"})
 
-with socketserver.TCPServer(("", PORT), RemoteSearchHandler) as httpd:
-    local_ip = socket.gethostbyname(socket.gethostname())
-    print(f"=== NODO DE ESCRITORIO ACTIVO ===")
-    print(f"IP Local: {local_ip}:{PORT}")
-    print(f"Codigo de Sincronizacion: {SYNC_CODE}")
-    print("El asistente en tu móvil ahora puede realizar búsquedas remotas en este equipo.")
-    httpd.serve_forever()
+    def do_POST(self):
+        import json
+        if self.path != "/search":
+            return self._send_json(404, {"status": "error", "message": "Endpoint no disponible"})
+        if not self._authenticated():
+            return self._send_json(401, {"status": "error", "message": "Token invalido o ausente"})
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            if length <= 0 or length > 65536:
+                return self._send_json(400, {"status": "error", "message": "Payload invalido"})
+            req = json.loads(self.rfile.read(length).decode("utf-8"))
+        except Exception:
+            return self._send_json(400, {"status": "error", "message": "JSON malformado"})
+
+        base_dir = os.path.realpath(os.path.abspath(str(req.get("path") or USER_HOME)))
+        if not is_path_safe(base_dir) or not os.path.isdir(base_dir):
+            return self._send_json(403, {"status": "error", "message": "Ruta fuera de los directorios permitidos"})
+
+        query = str(req.get("query", "")).strip().lower()
+        results = []
+        try:
+            for root, dirs, files in os.walk(base_dir):
+                dirs[:] = [d for d in dirs if not d.startswith(".") and d.lower() not in BLOCKED_PATTERNS]
+                if len(results) >= MAX_RESULTS_LIMIT:
+                    break
+                for file in files:
+                    if len(results) >= MAX_RESULTS_LIMIT:
+                        break
+                    if file.startswith(".") or file.lower() in BLOCKED_PATTERNS:
+                        continue
+                    if query and query not in file.lower():
+                        continue
+                    full_path = os.path.join(root, file)
+                    if os.path.islink(full_path):
+                        if not is_path_safe(os.path.realpath(full_path)):
+                            continue
+                    try:
+                        stat_info = os.stat(full_path)
+                        results.append({
+                            "name": file,
+                            "relativePath": os.path.relpath(full_path, USER_HOME),
+                            "sizeBytes": stat_info.st_size,
+                            "type": os.path.splitext(file)[1].replace(".", "").upper() or "FILE",
+                            "modifiedTimestamp": int(stat_info.st_mtime)
+                        })
+                    except OSError:
+                        continue
+        except Exception:
+            return self._send_json(500, {"status": "error", "message": "Error interno durante la busqueda"})
+        self._send_json(200, {"status": "ok", "count": len(results), "results": results})
+
+
+if __name__ == "__main__":
+    print("=" * 68)
+    print("  IA STUDENT - COMPANION SERVER SEGURO")
+    print("=" * 68)
+    print("  Enlace:                 127.0.0.1:" + str(PORT) + " (restringido a localhost)")
+    print("  Carpeta base permitida: " + USER_HOME)
+    print("  Codigo de sincronizacion: " + SYNC_CODE)
+    print("  TOKEN de autorizacion (requerido en la app movil):")
+    print("  " + AUTH_TOKEN)
+    print("=" * 68)
+    print("  Define COMPANION_AUTH_TOKEN antes de ejecutar para fijar un token.")
+    print("=" * 68)
+    try:
+        httpd = http.server.ThreadingHTTPServer(("127.0.0.1", PORT), SecureHandler)
+        print("Servidor iniciado en http://127.0.0.1:" + str(PORT))
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("Servidor detenido por el usuario.")
+    except Exception as exc:
+        print("Fallo al iniciar el servidor: " + str(exc))
+        sys.exit(1)
         """.trimIndent()
     }
 }

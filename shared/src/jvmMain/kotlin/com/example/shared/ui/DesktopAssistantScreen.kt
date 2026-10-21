@@ -603,7 +603,7 @@ fun DesktopSettingsPanel(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("gemini-3.5-flash", "gemini-3.1-pro-preview").forEach { m ->
+                        listOf("gemini-3.8-flash", "gemini-3.1-pro-preview").forEach { m ->
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
