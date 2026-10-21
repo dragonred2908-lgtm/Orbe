@@ -63,6 +63,7 @@ fun QuantumOrbScreen(
     var recognizedText by remember { mutableStateOf("") }
     var assistantReply by remember { mutableStateOf("") }
     var statusMessage by remember { mutableStateOf("En espera") }
+    var liveRmsLevel by remember { mutableFloatStateOf(0f) }
     var hasAudioPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -105,14 +106,12 @@ fun QuantumOrbScreen(
             statusMessage = "Hablando..."
 
             // Reproducir con la voz personalizada seleccionada (Kore, Aoede, Fenrir, Puck, Charon)
+            // Si la API TTS no responde o no hay conexión, se activa el motor nativo de voz automáticamente
             val ttsRes = apiClient.generateSpeech(replyText, voiceName = settings.voiceName)
-            if (ttsRes.audioData != null) {
-                audioPlayer.playAudioBytes(ttsRes.audioData) {
-                    orbState = OrbState.REPOSO
-                    statusMessage = "En espera"
-                }
-            } else {
-                delay(2500)
+            audioPlayer.playAudioOrSpeak(
+                audioBytes = ttsRes.audioData,
+                fallbackText = replyText
+            ) {
                 orbState = OrbState.REPOSO
                 statusMessage = "En espera"
             }
@@ -137,8 +136,16 @@ fun QuantumOrbScreen(
                 recognizedText = partial
                 statusMessage = "Escuchando: \"$partial\""
             },
+            onSpeechFinalResult = { finalSpoken ->
+                recognizedText = finalSpoken
+                statusMessage = "Entendido: \"$finalSpoken\""
+            },
+            onRmsLevelChanged = { rms ->
+                liveRmsLevel = rms
+            },
             onError = { err ->
                 statusMessage = "Audio: $err"
+                liveRmsLevel = 0f
                 if (orbState == OrbState.ESCUCHA) {
                     // Fallback to direct activation if voice input timed out or errored
                     processAssistantResponse()
@@ -208,6 +215,7 @@ fun QuantumOrbScreen(
                 CyanOrbCanvas(
                     state = orbState,
                     size = orbSize,
+                    audioLevel = liveRmsLevel,
                     onClick = { startListeningCycle() }
                 )
             }

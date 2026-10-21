@@ -5,6 +5,8 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
 import android.media.MediaPlayer
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.util.Base64
 import android.util.Log
 import java.io.ByteArrayOutputStream
@@ -12,20 +14,141 @@ import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.Locale
+import java.util.UUID
 
 /**
  * Reproductor de audio híbrido resiliente para Android.
- * Admite archivos WAV con cabecera RIFF, MP3, OGG y flujos de audio PCM sin cabecera
- * procedentes de APIs de síntesis de voz (Gemini 2.5 TTS a 24,000 Hz).
- * Incluye fallback automático a AudioTrack ante errores nativos de MediaPlayer.
+ * Soporta:
+ * 1. Muestras de audio PCM lineal sin comprimir (Gemini 2.5 Flash TTS a 24,000 Hz) con encapsulación RIFF/WAV.
+ * 2. Archivos WAV, MP3 y OGG nativos mediante MediaPlayer con AudioAttributes optimizados para voz.
+ * 3. Fallback inmediato de bajo nivel mediante AudioTrack para streaming directo al hardware.
+ * 4. Motor de voz nativo TextToSpeech (TTS) integrado para asegurar que el asistente NUNCA quede mudo ante fallos de red o falta de cuota de API.
  */
 class AudioPlayerHelper(private val context: Context) {
     private var mediaPlayer: MediaPlayer? = null
     private var audioTrack: AudioTrack? = null
+    private var textToSpeech: TextToSpeech? = null
+    private var isTtsReady: Boolean = false
 
     @Volatile
     private var isPlayingAudio: Boolean = false
 
+    init {
+        initTextToSpeech()
+    }
+
+    private fun initTextToSpeech() {
+        try {
+            textToSpeech = TextToSpeech(context.applicationContext) { status ->
+                if (status == TextToSpeech.SUCCESS) {
+                    val spanishLocale = Locale("es", "ES")
+                    val result = textToSpeech?.setLanguage(spanishLocale)
+                    if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                        textToSpeech?.setLanguage(Locale.getDefault())
+                    }
+                    isTtsReady = true
+                    Log.d(TAG, "Motor nativo TextToSpeech inicializado en español.")
+                } else {
+                    Log.w(TAG, "Fallo al inicializar motor nativo TextToSpeech (status: $status).")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error inicializando TextToSpeech", e)
+        }
+    }
+
+    /**
+     * Sintetiza y reproduce texto utilizando el motor de voz nativo de Android (TTS).
+     * Ideal como respaldo autónomo cuando no hay conexión a internet o la API de Gemini no devuelve audio.
+     */
+    fun speakText(text: String, onCompletion: () -> Unit = {}) {
+        stop()
+
+        if (text.isBlank()) {
+            onCompletion()
+            return
+        }
+
+        // Limpiar sintaxis de markdown o asteriscos para que la voz suene limpia
+        val cleanedText = cleanTextForSpeech(text)
+        if (cleanedText.isBlank()) {
+            onCompletion()
+            return
+        }
+
+        isPlayingAudio = true
+
+        val tts = textToSpeech
+        if (tts == null || !isTtsReady) {
+            Log.w(TAG, "TextToSpeech aún no está listo. Reintentando...")
+            initTextToSpeech()
+            isPlayingAudio = false
+            onCompletion()
+            return
+        }
+
+        val utteranceId = "tts_" + UUID.randomUUID().toString()
+        tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(id: String?) {
+                isPlayingAudio = true
+            }
+
+            override fun onDone(id: String?) {
+                if (id == utteranceId) {
+                    isPlayingAudio = false
+                    onCompletion()
+                }
+            }
+
+            @Deprecated("Deprecated in Java")
+            override fun onError(id: String?) {
+                if (id == utteranceId) {
+                    isPlayingAudio = false
+                    onCompletion()
+                }
+            }
+
+            override fun onError(id: String?, errorCode: Int) {
+                if (id == utteranceId) {
+                    isPlayingAudio = false
+                    onCompletion()
+                }
+            }
+        })
+
+        try {
+            tts.speak(cleanedText, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al invocar speak() en TextToSpeech", e)
+            isPlayingAudio = false
+            onCompletion()
+        }
+    }
+
+    /**
+     * Reproduce audio sintetizado en bytes. Si los bytes son nulos o vacíos,
+     * automáticamente habla el texto de respaldo mediante el motor de voz nativo.
+     */
+    fun playAudioOrSpeak(
+        audioBytes: ByteArray?,
+        fallbackText: String,
+        onCompletion: () -> Unit = {}
+    ) {
+        if (audioBytes != null && audioBytes.isNotEmpty()) {
+            playAudioBytes(audioBytes, onCompletion = {
+                onCompletion()
+            })
+        } else if (fallbackText.isNotBlank()) {
+            speakText(fallbackText, onCompletion)
+        } else {
+            onCompletion()
+        }
+    }
+
+    /**
+     * Reproduce bytes de audio binario (WAV, PCM, MP3).
+     */
     fun playAudioBytes(bytes: ByteArray, onCompletion: () -> Unit = {}) {
         stop()
 
@@ -54,7 +177,14 @@ class AudioPlayerHelper(private val context: Context) {
                 fos.flush()
             }
 
-            val player = MediaPlayer()
+            val player = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ASSISTANT)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
+            }
             mediaPlayer = player
 
             player.setDataSource(tempFile.absolutePath)
@@ -68,21 +198,21 @@ class AudioPlayerHelper(private val context: Context) {
             }
             player.setOnCompletionListener {
                 cleanUpMediaPlayer()
-                tempFile.delete()
+                try { tempFile.delete() } catch (_: Exception) {}
                 isPlayingAudio = false
                 onCompletion()
             }
             player.setOnErrorListener { _, what, extra ->
-                Log.e(TAG, "MediaPlayerNative error: what=$what extra=$extra. Activando fallback AudioTrack...")
+                Log.w(TAG, "MediaPlayerNative error: what=$what extra=$extra. Activando fallback AudioTrack...")
                 cleanUpMediaPlayer()
-                tempFile.delete()
+                try { tempFile.delete() } catch (_: Exception) {}
                 fallbackPlayWithAudioTrack(bytes, onCompletion)
                 true
             }
 
-            player.prepare()
+            player.prepareAsync()
         } catch (e: Exception) {
-            Log.w(TAG, "Excepción en MediaPlayer.prepare (${e.message}). Activando fallback AudioTrack...")
+            Log.w(TAG, "Excepción en MediaPlayer.prepareAsync (${e.message}). Activando fallback AudioTrack...")
             cleanUpMediaPlayer()
             fallbackPlayWithAudioTrack(bytes, onCompletion)
         }
@@ -90,20 +220,30 @@ class AudioPlayerHelper(private val context: Context) {
 
     /**
      * Fallback de bajo nivel con AudioTrack para flujos PCM directos sin depender del códec de medios.
+     * Si los bytes contienen cabecera RIFF de 44 bytes, la remueve para evitar 'clicks' o ruido estático.
      */
-    private fun fallbackPlayWithAudioTrack(pcmBytes: ByteArray, onCompletion: () -> Unit) {
-        Thread {
+    private fun fallbackPlayWithAudioTrack(inputBytes: ByteArray, onCompletion: () -> Unit) {
+        Thread({
             try {
                 val sampleRate = 24000
                 val channelConfig = AudioFormat.CHANNEL_OUT_MONO
                 val audioFormat = AudioFormat.ENCODING_PCM_16BIT
+
+                // Si contiene cabecera RIFF WAV (44 bytes), extraer únicamente las muestras PCM
+                val pcmData = if (hasAudioContainerHeader(inputBytes) && inputBytes.size > 44 &&
+                    inputBytes[0] == 'R'.code.toByte() && inputBytes[1] == 'I'.code.toByte()) {
+                    inputBytes.copyOfRange(44, inputBytes.size)
+                } else {
+                    inputBytes
+                }
+
                 val minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormat)
-                val bufferSize = maxOf(minBufferSize, pcmBytes.size)
+                val bufferSize = maxOf(minBufferSize, pcmData.size)
 
                 val track = AudioTrack.Builder()
                     .setAudioAttributes(
                         AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setUsage(AudioAttributes.USAGE_ASSISTANT)
                             .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                             .build()
                     )
@@ -120,14 +260,26 @@ class AudioPlayerHelper(private val context: Context) {
 
                 audioTrack = track
                 track.play()
-                track.write(pcmBytes, 0, pcmBytes.size)
 
-                // Esperar a que el búfer termine de sonar
-                val durationMs = (pcmBytes.size.toDouble() / (sampleRate * 2) * 1000).toLong()
-                Thread.sleep(durationMs.coerceAtLeast(100L))
+                // Escritura progresiva en fragmentos permitiendo cancelación inmediata con stop()
+                val chunkSize = 4096
+                var offset = 0
+                while (isPlayingAudio && offset < pcmData.size) {
+                    val toWrite = minOf(chunkSize, pcmData.size - offset)
+                    val written = track.write(pcmData, offset, toWrite)
+                    if (written <= 0) break
+                    offset += written
+                }
 
-                track.stop()
-                track.release()
+                if (isPlayingAudio) {
+                    val remainingMs = (pcmData.size.toDouble() / (sampleRate * 2) * 50).toLong()
+                    Thread.sleep(remainingMs.coerceIn(10L, 200L))
+                }
+
+                try {
+                    track.stop()
+                    track.release()
+                } catch (_: Exception) {}
                 audioTrack = null
             } catch (ex: Exception) {
                 Log.e(TAG, "Error crítico en fallback AudioTrack", ex)
@@ -135,7 +287,7 @@ class AudioPlayerHelper(private val context: Context) {
                 isPlayingAudio = false
                 onCompletion()
             }
-        }.start()
+        }, "AudioTrackPlaybackThread").start()
     }
 
     fun playBase64Audio(base64Audio: String, onCompletion: () -> Unit = {}) {
@@ -156,8 +308,20 @@ class AudioPlayerHelper(private val context: Context) {
 
     fun stop() {
         isPlayingAudio = false
+        try {
+            textToSpeech?.stop()
+        } catch (_: Exception) {}
         cleanUpMediaPlayer()
         cleanUpAudioTrack()
+    }
+
+    fun destroy() {
+        stop()
+        try {
+            textToSpeech?.shutdown()
+            textToSpeech = null
+            isTtsReady = false
+        } catch (_: Exception) {}
     }
 
     private fun cleanUpMediaPlayer() {
@@ -190,6 +354,20 @@ class AudioPlayerHelper(private val context: Context) {
 
     companion object {
         private const val TAG = "AudioPlayerHelper"
+
+        /**
+         * Limpia textos con asteriscos, numerales y enlaces markdown para que suenen naturales en voz hablada.
+         */
+        fun cleanTextForSpeech(input: String): String {
+            return input
+                .replace(Regex("\\*\\*(.*?)\\*\\*"), "$1") // **bold**
+                .replace(Regex("\\*(.*?)\\*"), "$1")       // *italic*
+                .replace(Regex("#+\\s*"), "")              // # Encabezados
+                .replace(Regex("\\[(.*?)\\]\\(.*?\\)"), "$1") // [texto](url)
+                .replace(Regex("`{1,3}.*?`{1,3}"), "")     // `código`
+                .replace(Regex("[•\\-–—]"), "")            // viñetas
+                .trim()
+        }
 
         /**
          * Detecta si los bytes poseen la cabecera mágica de contenedores de audio populares.

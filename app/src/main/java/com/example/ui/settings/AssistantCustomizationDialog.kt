@@ -355,11 +355,10 @@ fun AssistantCustomizationDialog(
                                         coroutineScope.launch {
                                             val previewText = "Hola, soy ${nameInput.ifBlank { "tu asistente" }}. Sistemas activos y a tu orden."
                                             val tts = apiClient.generateSpeech(previewText, voiceName = selectedVoice)
-                                            tts.audioData?.let { bytes ->
-                                                audioPlayer.playAudioBytes(bytes) {
-                                                    isTestingVoice = false
-                                                }
-                                            } ?: run {
+                                            audioPlayer.playAudioOrSpeak(
+                                                audioBytes = tts.audioData,
+                                                fallbackText = previewText
+                                            ) {
                                                 isTestingVoice = false
                                             }
                                         }

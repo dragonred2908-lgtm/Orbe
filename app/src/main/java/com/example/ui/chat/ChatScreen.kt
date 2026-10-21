@@ -435,13 +435,11 @@ Estoy aquí para guiarte en la creación de aplicaciones, chatbots, flujos de tr
                             coroutineScope.launch {
                                 isTtsPlaying = true
                                 val result = apiClient.generateSpeech(text, voiceName = "Kore")
-                                if (result.audioData != null) {
-                                    audioPlayer.playAudioBytes(result.audioData) {
-                                        isTtsPlaying = false
-                                    }
-                                } else {
+                                audioPlayer.playAudioOrSpeak(
+                                    audioBytes = result.audioData,
+                                    fallbackText = text
+                                ) {
                                     isTtsPlaying = false
-                                    Toast.makeText(context, result.error ?: "Error TTS", Toast.LENGTH_SHORT).show()
                                 }
                             }
                         },

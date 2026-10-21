@@ -99,9 +99,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStop() {
+        super.onStop()
+        audioPlayer.stop()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
-        audioPlayer.stop()
+        audioPlayer.destroy()
     }
 }
 

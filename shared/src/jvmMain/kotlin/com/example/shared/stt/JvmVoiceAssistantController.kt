@@ -28,6 +28,8 @@ class JvmVoiceAssistantController(
         }
     )
 
+    val audioPlayer: com.example.shared.audio.JvmAudioPlayer = com.example.shared.audio.JvmAudioPlayer()
+
     private val _isRecordingActive = MutableStateFlow(false)
     val isRecordingActive: StateFlow<Boolean> = _isRecordingActive.asStateFlow()
 

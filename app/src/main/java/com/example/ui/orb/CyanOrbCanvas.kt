@@ -42,6 +42,7 @@ fun CyanOrbCanvas(
     state: OrbState,
     modifier: Modifier = Modifier,
     size: Dp = 320.dp,
+    audioLevel: Float = 0f,
     onClick: () -> Unit = {}
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "QuantumWaveTransition")
@@ -83,7 +84,7 @@ fun CyanOrbCanvas(
     )
 
     // Pulsación cuántica de profundidad
-    val breathingScale by infiniteTransition.animateFloat(
+    val breathingScaleBase by infiniteTransition.animateFloat(
         initialValue = when (state) {
             OrbState.REPOSO -> 0.96f
             OrbState.ESCUCHA -> 1.04f
@@ -107,6 +108,12 @@ fun CyanOrbCanvas(
         ),
         label = "BreathingScale"
     )
+
+    val breathingScale = if (state == OrbState.ESCUCHA) {
+        breathingScaleBase + (audioLevel * 0.18f)
+    } else {
+        breathingScaleBase
+    }
 
     // Generar enjambre de partículas en anillos concéntricos
     val particles = remember {
