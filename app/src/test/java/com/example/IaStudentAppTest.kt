@@ -110,8 +110,12 @@ class IaStudentAppTest {
         assertTrue(updatedDevices.any { it.name == "Laptop Oficina" })
 
         val script = repo.getPythonDesktopCompanionScript()
-        assertTrue(script.contains("RemoteSearchHandler"))
+        // El script endurecido genera la clase SecureHandler y el servidor
+        // seguro escucha en 127.0.0.1 con autenticación Bearer obligatoria.
+        assertTrue(script.contains("SecureHandler"))
         assertTrue(script.contains("PORT = 8080"))
+        assertTrue(script.contains("127.0.0.1"))
+        assertTrue(script.contains("secrets.compare_digest"))
     }
 
     @Test
