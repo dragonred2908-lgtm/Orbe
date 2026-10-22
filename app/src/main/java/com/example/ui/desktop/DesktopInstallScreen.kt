@@ -374,6 +374,7 @@ fun DesktopInstallScreen(
         var devPlatform by remember { mutableStateOf(PlatformType.WINDOWS) }
         var devIp by remember { mutableStateOf("192.168.1.150") }
         var devPath by remember { mutableStateOf("") }
+        var devToken by remember { mutableStateOf("") }
 
         AlertDialog(
             onDismissRequest = { showAddDeviceDialog = false },
@@ -438,12 +439,33 @@ fun DesktopInstallScreen(
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    OutlinedTextField(
+                        value = devToken,
+                        onValueChange = { devToken = it },
+                        label = { Text("Token del Servidor Compañero") },
+                        placeholder = {
+                            Text("Se imprime en la consola al iniciar el script en la PC", color = Color.Gray)
+                        },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF238636),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        "Obligatorio para búsquedas reales. El token Bearer se muestra en consola al ejecutar companion_server.py, o fija el tuyo con COMPANION_AUTH_TOKEN.",
+                        color = Color(0xFF8B949E),
+                        fontSize = 10.sp
+                    )
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        crossPlatformRepo.addLinkedDevice(devName, devPlatform, devIp, devPath)
+                        crossPlatformRepo.addLinkedDevice(devName, devPlatform, devIp, devPath, devToken)
                         Toast.makeText(context, "Equipo vinculado con éxito", Toast.LENGTH_SHORT).show()
                         showAddDeviceDialog = false
                     },

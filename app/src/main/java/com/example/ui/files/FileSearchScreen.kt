@@ -31,7 +31,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.repository.CrossPlatformRepository
 import com.example.data.repository.FileSearchRepository
+import com.example.data.repository.FileSearchResult
 import com.example.data.repository.ManagedFileItem
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,14 +57,27 @@ fun FileSearchScreen(
 
     val categories = listOf("Todos", "Documentos", "Imágenes", "Videos", "Audio", "Código")
 
-    val searchResults = remember(searchQuery, selectedCategory, includeRemote, customPathInput, linkedDevices) {
-        fileSearchRepo.searchLocalAndRemote(
-            query = searchQuery,
-            selectedCategory = selectedCategory,
-            customPath = if (customPathInput.isNotBlank()) customPathInput else null,
-            includeRemoteDevices = includeRemote,
-            remoteDevices = linkedDevices
-        )
+    val searchOutcome = remember { mutableStateOf(FileSearchResult(emptyList(), emptyList())) }
+    var isSearching by remember { mutableStateOf(false) }
+
+    // Búsqueda reactiva con debounce: se cancela y reprograma ante cada cambio
+    // de tecla/filtro; el repositorio corre en Dispatchers.IO (red + disco).
+    LaunchedEffect(searchQuery, selectedCategory, includeRemote, customPathInput, linkedDevices) {
+        isSearching = true
+        try {
+            delay(350)
+            searchOutcome.value = fileSearchRepo.searchLocalAndRemote(
+                query = searchQuery,
+                selectedCategory = selectedCategory,
+                customPath = if (customPathInput.isNotBlank()) customPathInput else null,
+                includeRemoteDevices = includeRemote,
+                remoteDevices = linkedDevices
+            )
+        } catch (e: Exception) {
+            // Corpus vacío ante cancelación/errores; el estado por PC se reporta aparte.
+            searchOutcome.value = FileSearchResult(emptyList(), emptyList())
+        }
+        isSearching = false
     }
 
     LazyColumn(
@@ -276,18 +291,37 @@ fun FileSearchScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "Resultados Encontrados (${searchResults.size})",
+                    "Resultados Encontrados (${searchOutcome.value.items.size})",
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )
-                if (searchResults.isNotEmpty()) {
+                if (isSearching) {
+                    androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.height(16.dp).width(16.dp), strokeWidth = 2.dp)
+                } else if (searchOutcome.value.items.isNotEmpty()) {
                     Text("Toca un archivo para ver detalles o consultar a la IA", color = Color(0xFF8B949E), fontSize = 10.sp)
+                }
+            }
+
+            // Estado de cada PC consultada (tokens, errores de red o rechazos del servidor)
+            val statuses = searchOutcome.value.remoteStatus
+            if (statuses.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    statuses.forEach { st ->
+                        val color = if (st.ok) Color(0xFF238636) else Color(0xFFBB6A23)
+                        val icon = if (st.ok) "✅" else "⚠️"
+                        Text(
+                            "$icon ${st.deviceName}: ${st.message}",
+                            color = color,
+                            fontSize = 11.sp
+                        )
+                    }
                 }
             }
         }
 
-        if (searchResults.isEmpty()) {
+        if (searchOutcome.value.items.isEmpty() && !isSearching) {
             item {
                 Box(
                     modifier = Modifier
@@ -304,7 +338,7 @@ fun FileSearchScreen(
                 }
             }
         } else {
-            items(searchResults) { fileItem ->
+            items(searchOutcome.value.items) { fileItem ->
                 FileResultItemCard(
                     item = fileItem,
                     onClick = { selectedFileForDetail = fileItem }

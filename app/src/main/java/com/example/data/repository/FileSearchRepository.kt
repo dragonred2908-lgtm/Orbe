@@ -2,7 +2,15 @@ package com.example.data.repository
 
 import android.content.Context
 import android.os.Environment
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 data class ManagedFileItem(
     val id: String,
@@ -15,7 +23,28 @@ data class ManagedFileItem(
     val lastModified: String
 )
 
+/** Estado de la consulta remota a un dispositivo vinculado (para la UI). */
+data class RemoteDeviceStatus(
+    val deviceName: String,
+    val ok: Boolean,
+    val message: String
+)
+
+/** Resultado completo: archivos encontrados + estado de cada PC consultada. */
+data class FileSearchResult(
+    val items: List<ManagedFileItem>,
+    val remoteStatus: List<RemoteDeviceStatus>
+)
+
 class FileSearchRepository(private val context: Context) {
+
+    // Cliente HTTP dedicado a la sincronización remota con límites de tiempo
+    // estrictos: si la PC no responde rápido, reportamos el estado y seguimos.
+    private val remoteHttpClient = OkHttpClient.Builder()
+        .connectTimeout(3, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .callTimeout(15, TimeUnit.SECONDS)
+        .build()
 
     // Rutas comunes predeterminadas según el sistema operativo
     val standardPaths = mapOf(
@@ -27,14 +56,15 @@ class FileSearchRepository(private val context: Context) {
         "Linux (Documentos)" to "/home/usuario/Documentos"
     )
 
-    fun searchLocalAndRemote(
+    suspend fun searchLocalAndRemote(
         query: String,
         selectedCategory: String, // "Todos", "Documentos", "Imágenes", "Videos", "Audio", "Código"
         customPath: String?,
         includeRemoteDevices: Boolean,
         remoteDevices: List<LinkedDevice>
-    ): List<ManagedFileItem> {
+    ): FileSearchResult = withContext(Dispatchers.IO) {
         val results = mutableListOf<ManagedFileItem>()
+        val remoteStatus = mutableListOf<RemoteDeviceStatus>()
         val cleanQuery = query.trim().lowercase()
 
         // 1. Archivos locales reales del dispositivo (App internal / external storage).
@@ -103,39 +133,107 @@ class FileSearchRepository(private val context: Context) {
             }
         }
 
-        // 3. Archivos Remotos en PC / Mac / Linux (Sincronización remota simulada y conectada)
+        // 3. Búsqueda REAL en PC / Mac / Linux vinculadas vía Servidor Compañero.
+        // Requiere que el dispositivo tenga su token de emparejamiento configurado;
+        // cada consulta va con Bearer y reporta un RemoteDeviceStatus para la UI.
         if (includeRemoteDevices) {
-            remoteDevices.filter { it.isConnected }.forEach { dev ->
-                val base = customPath?.ifBlank { dev.defaultSearchPath } ?: dev.defaultSearchPath
-                val remoteItems = when (dev.platform) {
-                    PlatformType.WINDOWS -> listOf(
-                        ManagedFileItem("rem_win_1", "Informe_Financiero_Q3.xlsx", "$base\\Informe_Financiero_Q3.xlsx", "3.2 MB", "XLSX", false, "PC Windows Remota (${dev.name})", "Hoy, 09:12"),
-                        ManagedFileItem("rem_win_2", "Contrato_Cliente_Firmado.pdf", "$base\\Contrato_Cliente_Firmado.pdf", "1.1 MB", "PDF", false, "PC Windows Remota (${dev.name})", "Ayer, 16:45"),
-                        ManagedFileItem("rem_win_3", "Video_Demostracion_Producto.mp4", "C:\\Users\\Usuario\\Videos\\Video_Demostracion_Producto.mp4", "45.6 MB", "MP4", false, "PC Windows Remota (${dev.name})", "11 Oct 2026"),
-                        ManagedFileItem("rem_win_4", "Diagrama_Arquitectura_AI.drawio", "$base\\Diagrama_Arquitectura_AI.drawio", "520 KB", "DRAWIO", false, "PC Windows Remota (${dev.name})", "10 Oct 2026")
+            remoteDevices.filter { it.platform != PlatformType.ANDROID && it.isConnected }.forEach { dev ->
+                val token = dev.authToken.trim()
+                if (token.isEmpty()) {
+                    remoteStatus.add(
+                        RemoteDeviceStatus(
+                            deviceName = dev.name,
+                            ok = false,
+                            message = "Sin token de emparejamiento configurado (cópielo de la consola del Servidor Compañero)"
+                        )
                     )
-                    PlatformType.MACOS -> listOf(
-                        ManagedFileItem("rem_mac_1", "Design_System_Figma_Export.sketch", "$base/Design_System_Figma_Export.sketch", "18.4 MB", "SKETCH", false, "Mac Remota (${dev.name})", "13 Oct 2026"),
-                        ManagedFileItem("rem_mac_2", "Podcast_Episodio_Master.wav", "/Users/usuario/Music/Podcast_Episodio_Master.wav", "68.2 MB", "WAV", false, "Mac Remota (${dev.name})", "Hoy, 11:00")
-                    )
-                    PlatformType.LINUX -> listOf(
-                        ManagedFileItem("rem_lin_1", "deploy_docker_compose.yml", "$base/deploy_docker_compose.yml", "6 KB", "YML", false, "Linux Remota (${dev.name})", "Hoy, 08:30"),
-                        ManagedFileItem("rem_lin_2", "backup_database.tar.gz", "/home/usuario/Backups/backup_database.tar.gz", "128.5 MB", "TAR.GZ", false, "Linux Remota (${dev.name})", "09 Oct 2026")
-                    )
-                    else -> emptyList()
+                    return@forEach
                 }
 
-                remoteItems.forEach { rItem ->
-                    val matchesQuery = cleanQuery.isEmpty() || rItem.name.lowercase().contains(cleanQuery)
-                    val matchesCategory = matchesCategory(rItem.name, selectedCategory)
-                    if (matchesQuery && matchesCategory) {
-                        results.add(rItem)
+                try {
+                    val payload = JSONObject()
+                    payload.put("query", cleanQuery)
+                    // Sin ruta específica el servidor usa su carpeta home.
+                    if (!customPath.isNullOrBlank()) {
+                        payload.put("path", customPath.trim())
                     }
+                    payload.put("limit", 25)
+
+                    val request = Request.Builder()
+                        .url("http://${dev.ipAddress.trim()}:${dev.port}/search")
+                        .addHeader("Authorization", "Bearer $token")
+                        .post(payload.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
+                        .build()
+
+                    remoteHttpClient.newCall(request).execute().use { response ->
+                        val bodyStr = response.body?.string().orEmpty()
+                        val json = runCatching { JSONObject(bodyStr) }.getOrNull()
+
+                        if (!response.isSuccessful) {
+                            remoteStatus.add(
+                                RemoteDeviceStatus(
+                                    deviceName = dev.name,
+                                    ok = false,
+                                    message = "Error ${response.code}: ${json?.optString("message", "Rechazado por el servidor").orEmpty()}"
+                                )
+                            )
+                            return@forEach
+                        }
+
+                        if (json == null) {
+                            remoteStatus.add(RemoteDeviceStatus(dev.name, false, "Respuesta malformada del servidor"))
+                            return@forEach
+                        }
+
+                        val arr = json.optJSONArray("results")
+                        var added = 0
+                        if (arr != null) {
+                            for (i in 0 until arr.length()) {
+                                val obj = arr.optJSONObject(i) ?: continue
+                                val name = obj.optString("name")
+                                val matchesCategory = matchesCategory(name, selectedCategory)
+                                if (!matchesCategory) continue
+                                val relPath = obj.optString("relativePath")
+                                results.add(
+                                    ManagedFileItem(
+                                        id = "rem_${dev.id}_${relPath.hashCode()}",
+                                        name = name,
+                                        path = "~/$relPath",
+                                        sizeStr = obj.optString(
+                                            "size",
+                                            formatFileSize(obj.optLong("sizeBytes", 0L))
+                                        ),
+                                        extension = obj.optString("type", "FILE").uppercase(),
+                                        isDirectory = false,
+                                        locationType = "${dev.platform.icon} ${dev.name} (Remota)",
+                                        lastModified = formatTimestamp(obj.optLong("modifiedTimestamp", 0L) * 1000L)
+                                    )
+                                )
+                                added++
+                            }
+                        }
+                        remoteStatus.add(
+                            RemoteDeviceStatus(dev.name, true, "$added resultados en '${dev.ipAddress}:${dev.port}'")
+                        )
+                    }
+                } catch (e: java.net.SocketTimeoutException) {
+                    remoteStatus.add(
+                        RemoteDeviceStatus(dev.name, false, "PC no responde (timeout). ¿El Servidor Compañero está activo?")
+                    )
+                } catch (e: java.io.IOException) {
+                    remoteStatus.add(
+                        RemoteDeviceStatus(
+                            dev.name, false,
+                            "Sin conexión a ${dev.ipAddress}:${dev.port}. Verifique IP/puerto y que ambos equipos estén en la misma red."
+                        )
+                    )
+                } catch (e: Exception) {
+                    remoteStatus.add(RemoteDeviceStatus(dev.name, false, "Error inesperado: ${e.message.orEmpty()}"))
                 }
             }
         }
 
-        return results
+        return@withContext FileSearchResult(results, remoteStatus)
     }
 
     private fun matchesCategory(fileName: String, category: String): Boolean {

@@ -109,6 +109,10 @@ class IaStudentAppTest {
         val updatedDevices = repo.linkedDevices.value
         assertTrue(updatedDevices.any { it.name == "Laptop Oficina" })
 
+        // El token del Servidor Compañero se guarda y queda disponible para las búsquedas reales.
+        repo.addLinkedDevice("PC Tokenizada", PlatformType.LINUX, "192.168.5.23", "", "token_demosecret")
+        assertTrue(repo.linkedDevices.value.any { it.authToken == "token_demosecret" })
+
         val script = repo.getPythonDesktopCompanionScript()
         // El script endurecido genera la clase SecureHandler y el servidor
         // seguro escucha en 127.0.0.1 con autenticación Bearer obligatoria.
@@ -144,15 +148,32 @@ class IaStudentAppTest {
         val searchRepo = FileSearchRepository(context)
         val crossRepo = CrossPlatformRepository(context)
 
-        val results = searchRepo.searchLocalAndRemote(
-            query = "pdf",
-            selectedCategory = "Documentos",
-            customPath = null,
-            includeRemoteDevices = true,
-            remoteDevices = crossRepo.linkedDevices.value
-        )
-        assertTrue(results.isNotEmpty())
-        assertTrue(results.all { it.extension.equals("PDF", ignoreCase = true) })
+        // PDF real dentro de filesDir para validar la búsqueda local sin network.
+        val testPdf = java.io.File(context.filesDir, "prueba_iastudent_busqueda.pdf")
+        testPdf.writeText("%PDF-1.4 contenido de prueba")
+
+        kotlinx.coroutines.runBlocking {
+            val outcome = searchRepo.searchLocalAndRemote(
+                query = "prueba_iastudent",
+                selectedCategory = "Documentos",
+                customPath = null,
+                includeRemoteDevices = true,
+                remoteDevices = crossRepo.linkedDevices.value
+            )
+
+            // El archivo local real aparece en los resultados.
+            assertTrue(
+                outcome.items.any { it.name == "prueba_iastudent_busqueda.pdf" && it.extension == "PDF" }
+            )
+
+            // Las PC semilla no tienen token: se reportan como no disponibles,
+            // sin lanzar excepciones ni hacer peticiones de red.
+            val pcs = outcome.remoteStatus.filter { !it.ok }
+            assertTrue(pcs.isNotEmpty())
+            assertTrue(outcome.remoteStatus.any { it.message.contains("token") })
+        }
+
+        testPdf.delete()
     }
 
     @Test

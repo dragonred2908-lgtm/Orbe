@@ -23,7 +23,10 @@ data class LinkedDevice(
     val port: Int = 8080,
     val isConnected: Boolean = true,
     val defaultSearchPath: String,
-    val lastSyncTime: String
+    val lastSyncTime: String,
+    // Token Bearer del Servidor Compañero (se imprime al iniciar el script en la PC).
+    // Vacío = dispositivo vinculado pero aún sin credencial para búsquedas reales.
+    val authToken: String = ""
 )
 
 data class RemoteFileItem(
@@ -96,7 +99,8 @@ class CrossPlatformRepository(context: Context) {
                         port = obj.getInt("port"),
                         isConnected = obj.getBoolean("isConnected"),
                         defaultSearchPath = obj.getString("defaultSearchPath"),
-                        lastSyncTime = obj.getString("lastSyncTime")
+                        lastSyncTime = obj.getString("lastSyncTime"),
+                        authToken = obj.optString("token", "")
                     )
                 )
             }
@@ -118,6 +122,7 @@ class CrossPlatformRepository(context: Context) {
                 put("isConnected", dev.isConnected)
                 put("defaultSearchPath", dev.defaultSearchPath)
                 put("lastSyncTime", dev.lastSyncTime)
+                put("token", dev.authToken)
             }
             array.put(obj)
         }
@@ -125,7 +130,13 @@ class CrossPlatformRepository(context: Context) {
         _linkedDevices.value = list
     }
 
-    fun addLinkedDevice(name: String, platform: PlatformType, ipAddress: String, path: String) {
+    fun addLinkedDevice(
+        name: String,
+        platform: PlatformType,
+        ipAddress: String,
+        path: String,
+        token: String = ""
+    ) {
         val newDev = LinkedDevice(
             id = "dev_" + System.currentTimeMillis(),
             name = name.ifBlank { "${platform.displayName} Sync Node" },
@@ -135,13 +146,14 @@ class CrossPlatformRepository(context: Context) {
             isConnected = true,
             defaultSearchPath = path.ifBlank {
                 when (platform) {
-                    PlatformType.WINDOWS -> "C:\\Users\\Usuario\\Documents"
-                    PlatformType.MACOS -> "/Users/usuario/Documents"
-                    PlatformType.LINUX -> "/home/usuario/Documentos"
+                    PlatformType.WINDOWS -> "C:\\Users\\...\\Documents"
+                    PlatformType.MACOS -> "/Users/.../Documents"
+                    PlatformType.LINUX -> "/home/.../Documentos"
                     PlatformType.ANDROID -> "/storage/emulated/0/Download"
                 }
             },
-            lastSyncTime = "Recién vinculado"
+            lastSyncTime = "Recién vinculado",
+            authToken = token.trim()
         )
         saveDevices(_linkedDevices.value + newDev)
     }
