@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Configuración de Seguridad de Red (Network Security Configuration)
+    Garantiza comunicaciones estrictamente cifradas (HTTPS/TLS) y bloquea
+    cualquier intento de tráfico en texto claro (cleartext HTTP) para mitigar
+    ataques de hombre en el medio (MitM) y filtraciones de credenciales.
+-->
+<network-security-config>
+    <!-- Deshabilitar globalmente el tráfico cleartext no cifrado -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Configuración para endpoints de Google AI Studio y Gemini API -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">generativelanguage.googleapis.com</domain>
+        <domain includeSubdomains="true">googleapis.com</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

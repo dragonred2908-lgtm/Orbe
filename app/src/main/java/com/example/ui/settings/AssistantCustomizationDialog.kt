@@ -59,6 +59,11 @@ fun AssistantCustomizationDialog(
     var testResult by remember { mutableStateOf<String?>(null) }
     var isTestingVoice by remember { mutableStateOf(false) }
 
+    // API Testing telemetry
+    var userApiKeyInput by remember { mutableStateOf("") }
+    var apiTestResult by remember { mutableStateOf<com.example.data.api.ApiTestResult?>(null) }
+    var isTestingApi by remember { mutableStateOf(false) }
+
     Dialog(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -490,6 +495,112 @@ fun AssistantCustomizationDialog(
                             )
                         )
                     }
+
+                    // 6. Integración y Prueba de Gemini API
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            "6. Integración y Prueba de Gemini API (Opcional)",
+                            color = Color(0xFF00F0FF),
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            "Introduce tu clave GEMINI_API_KEY para verificar transmisiones de voz y conectividad en vivo.",
+                            color = Color(0xFF90A4AE),
+                            fontSize = 12.sp
+                        )
+                        OutlinedTextField(
+                            value = userApiKeyInput,
+                            onValueChange = { userApiKeyInput = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("api_key_input"),
+                            singleLine = true,
+                            placeholder = { Text("Pega aquí tu clave GEMINI_API_KEY para pruebas") },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = Color(0xFF00F0FF),
+                                unfocusedBorderColor = Color(0x6600F0FF),
+                                focusedContainerColor = Color(0x1000F0FF),
+                                unfocusedContainerColor = Color(0x0800F0FF)
+                            )
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = {
+                                    if (!isTestingApi) {
+                                        isTestingApi = true
+                                        apiTestResult = null
+                                        coroutineScope.launch {
+                                            val res = apiClient.testApiConnection(userApiKeyInput)
+                                            apiTestResult = res
+                                            isTestingApi = false
+                                        }
+                                    }
+                                },
+                                enabled = !isTestingApi,
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.testTag("test_api_button")
+                            ) {
+                                if (isTestingApi) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Probando API...")
+                                } else {
+                                    Text("🧪 Probar Conexión")
+                                }
+                            }
+
+                            if (userApiKeyInput.isNotBlank()) {
+                                OutlinedButton(
+                                    onClick = {
+                                        apiClient.setUserApiKey(userApiKeyInput)
+                                    },
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("Aplicar Clave")
+                                }
+                            }
+                        }
+
+                        apiTestResult?.let { res ->
+                            Surface(
+                                color = if (res.isSuccess) Color(0x2000E676) else Color(0x20FF5252),
+                                shape = RoundedCornerShape(8.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, if (res.isSuccess) Color(0xFF00E676) else Color(0xFFFF5252)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Text(
+                                        text = if (res.isSuccess) "✅ ${res.message}" else "❌ ${res.message}",
+                                        color = if (res.isSuccess) Color(0xFF00E676) else Color(0xFFFF8A80),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
+                                    )
+                                    if (res.isSuccess) {
+                                        Text(
+                                            text = "⏱️ Latencia: ${res.latencyMs} ms · Modelo: ${res.modelUsed}",
+                                            color = Color(0xFFE0E0E0),
+                                            fontSize = 11.sp
+                                        )
+                                        Text(
+                                            text = "🎙️ Transmisión de voz admitida: Sí (Gemini TTS 24kHz & STT)",
+                                            color = Color(0xFF80D8FF),
+                                            fontSize = 11.sp
+                                        )
+                                    } else {
+                                        Text(
+                                            text = res.testDetails,
+                                            color = Color(0xFFFFCDD2),
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 HorizontalDivider(
@@ -586,6 +697,9 @@ fun AssistantCustomizationDialog(
                                     matchContains = matchContains
                                 )
                             )
+                            if (userApiKeyInput.isNotBlank()) {
+                                apiClient.setUserApiKey(userApiKeyInput)
+                            }
                             onDismissRequest()
                         },
                         modifier = Modifier

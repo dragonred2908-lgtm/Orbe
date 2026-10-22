@@ -5,6 +5,8 @@
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)]()
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![PRD](https://img.shields.io/badge/Docs-PRD-informational.svg)](PRD.md)
+[![TRD](https://img.shields.io/badge/Docs-TRD-informational.svg)](TRD.md)
 
 ---
 

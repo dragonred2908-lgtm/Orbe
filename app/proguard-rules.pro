@@ -1,21 +1,38 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# ============================================================================
+# Reglas de Ofuscación, Seguridad y Optimización (ProGuard / R8)
+# Proyecto: IA Student (Orbe)
+# ============================================================================
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# 1. Conservar nombres de archivo fuente y tablas de líneas para análisis seguro de crashes
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# 2. Conservar modelos de datos y serialización JSON (Gemini y arquitectura interna)
+-keepclassmembers class com.example.data.model.** { *; }
+-keep class com.example.data.model.** { *; }
+-keepclassmembers class com.example.data.api.** { *; }
+-keep class com.example.data.api.ApiTestResult { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# 3. Conservar interfaces y clases de seguridad y permisos
+-keep class com.example.security.** { *; }
+-keepclassmembers class com.example.security.** { *; }
+-keep class com.example.data.permission.** { *; }
+-keepclassmembers class com.example.data.permission.** { *; }
+
+# 4. Eliminar llamadas de registro de logs sensibles en builds de Release (Previene filtración de datos)
+-assumenosideeffects class android.util.Log {
+    public static boolean isLoggable(java.lang.String, int);
+    public static int v(...);
+    public static int d(...);
+}
+
+# 5. Compatibilidad con Jetpack Compose y Kotlin Coroutines
+-keepclassmembers class * extends androidx.lifecycle.ViewModel {
+    <init>(...);
+}
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
+
+# 6. Descartar metadata sensible de depuración en clases compiladas
+-dontwarn kotlin.reflect.**
+-dontwarn javax.sound.sampled.**
+-dontwarn java.awt.**

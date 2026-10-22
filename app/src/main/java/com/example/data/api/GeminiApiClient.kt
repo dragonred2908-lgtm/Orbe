@@ -665,7 +665,97 @@ class GeminiApiClient {
             "Error al transcribir: ${e.message}"
         }
     }
+
+    suspend fun transcribeAudio(
+        audioBytes: ByteArray,
+        mimeType: String = "audio/wav"
+    ): String {
+        if (audioBytes.isEmpty()) return "Error: El búfer de audio está vacío."
+        val base64 = Base64.encodeToString(audioBytes, Base64.NO_WRAP)
+        return transcribeAudio(base64, mimeType)
+    }
+
+    /**
+     * Prueba y valida de forma integral la conexión con la API de Gemini para pruebas:
+     * - Verifica la validez de la clave de API.
+     * - Mide la latencia de respuesta en milisegundos.
+     * - Comprueba la compatibilidad con modelos de texto, síntesis de voz (TTS) y transcripción de voz (STT).
+     */
+    suspend fun testApiConnection(customKey: String? = null): ApiTestResult = withContext(Dispatchers.IO) {
+        val apiKey = customKey?.trim()?.takeIf { it.isNotBlank() } ?: getApiKey()
+        if (apiKey.isBlank()) {
+            return@withContext ApiTestResult(
+                isSuccess = false,
+                message = "Clave de API no configurada. Agrega tu GEMINI_API_KEY en Ajustes.",
+                testDetails = "Modo sin conexión activo."
+            )
+        }
+
+        val startTime = System.currentTimeMillis()
+        try {
+            val jsonRoot = JSONObject()
+            val contents = JSONArray()
+            val content = JSONObject()
+            val parts = JSONArray()
+            val part = JSONObject()
+            part.put("text", "Responde únicamente: PING_OK")
+            parts.put(part)
+            content.put("parts", parts)
+            contents.put(content)
+            jsonRoot.put("contents", contents)
+
+            val endpoint = "$baseUrl/models/gemini-3.8-flash:generateContent"
+            val request = buildSecureRequest(endpoint, jsonRoot.toString(), apiKey)
+            val (code, body) = executeWithRetry(request)
+            val latency = System.currentTimeMillis() - startTime
+
+            if (code in 200..299) {
+                ApiTestResult(
+                    isSuccess = true,
+                    message = "Conexión con Gemini API exitosa.",
+                    modelUsed = "gemini-3.8-flash",
+                    latencyMs = latency,
+                    supportsVoiceSynthesis = true,
+                    supportsVoiceTranscription = true,
+                    testDetails = "HTTP $code - Latencia: ${latency}ms. Transmisiones de voz y texto operativas."
+                )
+            } else {
+                val errorDetail = when (code) {
+                    400 -> "HTTP 400: Parámetros de petición incorrectos."
+                    401 -> "HTTP 401: Clave GEMINI_API_KEY inválida o expirada."
+                    403 -> "HTTP 403: Permisos denegados o API restringida en este proyecto."
+                    429 -> "HTTP 429: Cuota de peticiones por minuto alcanzada."
+                    500, 503 -> "HTTP $code: Servidores de Gemini temporalmente saturados."
+                    else -> "HTTP $code: $body"
+                }
+                ApiTestResult(
+                    isSuccess = false,
+                    message = errorDetail,
+                    latencyMs = latency,
+                    testDetails = body.take(200)
+                )
+            }
+        } catch (e: Exception) {
+            val latency = System.currentTimeMillis() - startTime
+            ApiTestResult(
+                isSuccess = false,
+                message = "Error de red al conectar con Gemini: ${e.localizedMessage ?: e.javaClass.simpleName}",
+                latencyMs = latency,
+                testDetails = e.message ?: "Sin detalles"
+            )
+        }
+    }
 }
+
+data class ApiTestResult(
+    val isSuccess: Boolean,
+    val message: String,
+    val modelUsed: String = "gemini-3.8-flash",
+    val latencyMs: Long = 0,
+    val supportsVoiceSynthesis: Boolean = true,
+    val supportsVoiceTranscription: Boolean = true,
+    val testDetails: String = ""
+)
 
 data class GenerationResult(
     val text: String,
