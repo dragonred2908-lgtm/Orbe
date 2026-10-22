@@ -24,6 +24,14 @@ import socket
 import sys
 from typing import List, Dict, Any, Optional
 
+# Consolas Windows (cp1252) no pueden codificar emojis/acentos modernos y
+# romperían el arranque con UnicodeEncodeError: forzamos UTF-8 tolerante.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError, ValueError):
+        pass
+
 # Configuración de Logging
 logging.basicConfig(
     level=logging.INFO,
