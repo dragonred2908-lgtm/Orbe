@@ -94,4 +94,30 @@ class OrbImageLoaderTest {
         assertEquals(".ia-student", dir.name)
         assertEquals(System.getProperty("user.home"), dir.parentFile?.path)
     }
+
+    @Test
+    fun testOrbeEmpaquetadoSeDecodificaConFotogramasCompletos() {
+        // Regresión: los fotogramas parciales del GIF (offsets + disposal) deben
+        // componerse sobre el lienzo lógico; si no, el orbe sale deformado.
+        val frames = OrbImageLoader.loadBundledFrames()
+
+        assertTrue(frames.size > 1, "El orbe empaquetado debe ser animado, obtuvo ${frames.size} fotogramas")
+
+        val first = frames.first().image
+        frames.forEachIndexed { index, frame ->
+            assertEquals(first.width, frame.image.width, "Fotograma $index con ancho distinto")
+            assertEquals(first.height, frame.image.height, "Fotograma $index con alto distinto")
+            assertTrue(frame.delayMs >= 30, "Retardo inválido en fotograma $index: ${frame.delayMs}")
+        }
+
+        // Debe haber movimiento real entre el primer fotograma y uno intermedio.
+        val middle = frames[frames.size / 2].image
+        var differences = 0
+        for (y in 0 until first.height step 40) {
+            for (x in 0 until first.width step 40) {
+                if (first.getRGB(x, y) != middle.getRGB(x, y)) differences++
+            }
+        }
+        assertTrue(differences > 0, "Los fotogramas del orbe empaquetado son idénticos: la animación no funciona")
+    }
 }

@@ -135,26 +135,67 @@ object OrbImageLoader {
                 return if (single != null) listOf(OrbFrame(scaleDown(single), 0)) else emptyList()
             }
 
-            // Lienzo acumulativo: los GIF pueden usar fotogramas parciales.
-            var canvas: BufferedImage? = null
+            // Tamaño lógico del GIF (puede ser mayor que los fotogramas parciales).
+            val canvasWidth = runCatching { reader.getWidth(0) }.getOrDefault(0)
+            val canvasHeight = runCatching { reader.getHeight(0) }.getOrDefault(0)
+            if (canvasWidth <= 0 || canvasHeight <= 0) return emptyList()
+
+            var canvas = BufferedImage(canvasWidth, canvasHeight, BufferedImage.TYPE_INT_ARGB)
+            var savedCanvas: BufferedImage? = null
+            var previousDisposal = "none"
+            var previousRect: java.awt.Rectangle? = null
 
             for (index in 0 until count) {
                 val frame = runCatching { reader.read(index) }.getOrNull() ?: continue
+                val info = readGifFrameInfo(reader, index)
                 val delay = readGifDelay(reader, index)
 
-                if (canvas == null || canvas!!.width != frame.width || canvas!!.height != frame.height) {
-                    canvas = BufferedImage(frame.width, frame.height, BufferedImage.TYPE_INT_ARGB)
+                // 1) Aplicar el método de borrado del fotograma anterior.
+                when (previousDisposal) {
+                    "restoreToBackgroundColor" -> {
+                        previousRect?.let { rect ->
+                            val g = canvas.createGraphics()
+                            g.composite = java.awt.AlphaComposite.Clear
+                            g.fillRect(rect.x, rect.y, rect.width, rect.height)
+                            g.dispose()
+                        }
+                    }
+                    "restoreToPrevious" -> {
+                        savedCanvas?.let { saved ->
+                            canvas = BufferedImage(canvasWidth, canvasHeight, BufferedImage.TYPE_INT_ARGB)
+                            val g = canvas.createGraphics()
+                            g.drawImage(saved, 0, 0, null)
+                            g.dispose()
+                        }
+                    }
                 }
-                val g = canvas!!.createGraphics()
-                g.drawImage(frame, 0, 0, null)
+
+                // 2) Guardar el estado actual si este fotograma pide "restoreToPrevious".
+                savedCanvas = if (info.disposal == "restoreToPrevious") {
+                    BufferedImage(canvasWidth, canvasHeight, BufferedImage.TYPE_INT_ARGB).also { copy ->
+                        val g = copy.createGraphics()
+                        g.drawImage(canvas, 0, 0, null)
+                        g.dispose()
+                    }
+                } else {
+                    null
+                }
+
+                // 3) Dibujar el fotograma en su posición real (no siempre es 0,0).
+                val g = canvas.createGraphics()
+                g.drawImage(frame, info.left, info.top, null)
                 g.dispose()
 
-                val snapshot = BufferedImage(canvas!!.width, canvas!!.height, BufferedImage.TYPE_INT_ARGB)
+                // 4) Instantánea para reproducirlo después.
+                val snapshot = BufferedImage(canvasWidth, canvasHeight, BufferedImage.TYPE_INT_ARGB)
                 val g2 = snapshot.createGraphics()
                 g2.drawImage(canvas, 0, 0, null)
                 g2.dispose()
 
                 frames.add(OrbFrame(scaleDown(snapshot), delay))
+
+                previousDisposal = info.disposal
+                previousRect = java.awt.Rectangle(info.left, info.top, frame.width, frame.height)
             }
             reader.dispose()
         } catch (e: Exception) {
@@ -163,6 +204,30 @@ object OrbImageLoader {
             runCatching { iis?.close() }
         }
         return frames
+    }
+
+    /** Posición y método de borrado declarados por un fotograma del GIF. */
+    private data class GifFrameInfo(val left: Int, val top: Int, val disposal: String)
+
+    private fun readGifFrameInfo(reader: javax.imageio.ImageReader, index: Int): GifFrameInfo {
+        return try {
+            val meta = reader.getImageMetadata(index)
+            val root = meta.getAsTree("javax_imageio_gif_image_1.0") as? org.w3c.dom.Element
+                ?: return GifFrameInfo(0, 0, "none")
+
+            val descriptors = root.getElementsByTagName("ImageDescriptor")
+            val descriptor = descriptors.item(0) as? org.w3c.dom.Element
+            val left = descriptor?.getAttribute("imageLeft")?.toIntOrNull() ?: 0
+            val top = descriptor?.getAttribute("imageTop")?.toIntOrNull() ?: 0
+
+            val controls = root.getElementsByTagName("GraphicControlExtension")
+            val control = controls.item(0) as? org.w3c.dom.Element
+            val disposal = control?.getAttribute("disposalMethod")?.takeIf { it.isNotBlank() } ?: "none"
+
+            GifFrameInfo(left, top, disposal)
+        } catch (e: Exception) {
+            GifFrameInfo(0, 0, "none")
+        }
     }
 
     /** Lee el retardo del fotograma (en centésimas de segundo según el GIF). */

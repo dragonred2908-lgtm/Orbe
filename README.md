@@ -178,9 +178,12 @@ Linux / macOS: ~/.ia-student/orb.gif
 ```
 
 También puedes elegirla desde el menú ☰ → *Elegir imagen del orbe…*, que copia
-el archivo a esa carpeta automáticamente. Si no hay imagen, la app usa el orbe
-cuántico procedural como respaldo. Los GIF se reproducen en bucle y se reducen
-a 720 px para no saturar PCs con renderizado por software.
+el archivo a esa carpeta automáticamente. La app ya incluye el diseño del orbe
+del proyecto en `shared/src/jvmMain/resources/orb_ia.gif` (406×720, 23
+fotogramas, ~2 s en bucle); si no hay imagen del usuario se usa ese GIF
+empaquetado. Como último recurso se dibuja el orbe cuántico procedural. Los GIF
+se reproducen en bucle y se reducen a 720 px y 72 fotogramas como máximo para no
+saturar PCs con renderizado por software.
 
 Para diagnósticos o capturas de soporte, `IA_STUDENT_UI_PANEL=settings`,
 `history` o `tests` abre ese panel lateral al arrancar.
