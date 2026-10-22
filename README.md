@@ -114,6 +114,86 @@ Generar instaladores nativos para el sistema operativo actual:
 
 ---
 
+## 🎙️ Modo de Voz SIN Conexión (sin GEMINI_API_KEY)
+
+El asistente de voz de escritorio funciona **de forma totalmente offline**: no necesita
+clave de API de Gemini ni internet en uso normal. La frase de activación
+**"Oye Aura"**, la transcripción y las respuestas básicas se ejecutan 100 % en local.
+
+### Cómo funciona
+
+| Componente | Motor offline | Requisitos |
+| :--- | :--- | :--- |
+| **Reconocimiento de voz (STT)** | [Vosk](https://alphacephei.com/) con modelo pequeño de español (`vosk-model-small-es-0.42`, ~38 MB) | Micrófono. El modelo se descarga **una sola vez** a `~/.ia-student/models/` y luego opera sin red. |
+| **Respuestas del asistente** | `OfflineAssistantBrain` (Kotlin puro, sin red): hora, fecha, saludos, identidad, ayuda y cálculos básicos | Ninguno |
+| **Síntesis de voz (TTS)** | Voz nativa del sistema: Windows SAPI (`System.Speech`), macOS `say`, Linux `espeak-ng`/`espeak`/`spd-say` | Ninguno |
+
+Si más tarde configuras tu `GEMINI_API_KEY` (botón de ajustes o archivo `.env`),
+el asistente **mejora automáticamente a modo en línea** (Gemini) y usa el offline
+como respaldo si la red falla. No hay que cambiar nada.
+
+### Comandos que entiende en modo offline
+
+- *"Oye Aura, ¿qué hora es?"*
+- *"Oye Aura, ¿qué fecha es hoy?"*
+- *"Oye Aura, ¿quién eres?"*
+- *"Oye Aura, ¿qué puedes hacer?"* (lista de comandos)
+- *"Oye Aura, ¿cuánto es 25 por 4?"* (suma, resta, multiplicación, división, potencia)
+- Saludos y despedidas
+
+### Primera ejecución (descarga del modelo)
+
+Al primer uso del micrófono sin API key, la app descarga el modelo de Vosk
+(~38 MB) una sola vez. Después ya nunca más necesita internet para escuchar.
+Si prefieres prepararlo a mano (p. ej. sin red en el equipo):
+
+```bash
+# Descargar y extraer el modelo a la ruta que usa la app:
+#   Windows: %USERPROFILE%\.ia-student\models\
+#   Linux/macOS: ~/.ia-student/models/
+curl -L -o vosk-model-small-es-0.42.zip https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip
+# (descomprimir dentro de la carpeta .ia-student/models/)
+```
+
+---
+
+## 🖥️ PCs Antiguas (sin DirectX 12 / GPU integrada antigua)
+
+En equipos con GPUs antiguas (p. ej. **Intel HD Graphics** sin DirectX 12 ni
+contexto OpenGL utilizable), Compose Desktop puede arrancar con la **ventana en
+negro** porque el renderizador por defecto (Skia/DirectX-OpenGL) no puede
+inicializarse.
+
+Para forzar el **renderizado por software** (CPU, sin GPU) añade la variable de
+entorno **antes de abrir la app**:
+
+```powershell
+# Windows (PowerShell — efectivo para la sesión actual):
+$env:IA_STUDENT_SOFTWARE_RENDER = "1"
+./gradlew :shared:run
+```
+
+```powershell
+# Windows (permanente, a nivel de usuario):
+setx IA_STUDENT_SOFTWARE_RENDER 1
+```
+
+```bash
+# Linux / macOS:
+export IA_STUDENT_SOFTWARE_RENDER=1
+./gradlew :shared:run
+```
+
+También puedes pasarlo como propiedad del JVM al empaquetar la app o al ejecutarla:
+`-Dia.softwareRender=true` (equivalente), o fijar directamente
+`-Dskiko.renderApi=SOFTWARE`. La app respeta cualquier valor que ya hayas fijado
+en `skiko.renderApi` y no lo sobreescribe.
+
+> 💡 El renderizado por software es más lento en animaciones pero garantiza que
+> la interfaz sea visible y usable en cualquier equipo, sin GPU compatible.
+
+---
+
 ---
 
 ## 🤖 Catálogo de Modelos Google Gemini Utilizados

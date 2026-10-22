@@ -33,7 +33,21 @@ class DesktopMain {
     }
 }
 
-fun runDesktopApplication() = application {
+fun runDesktopApplication() {
+    // Renderizado por software para PCs antiguas cuya GPU no soporta DirectX 12
+    // ni crea contexto OpenGL (p. ej. Intel HD Graphics antiguas): la ventana
+    // quedaría en negro. Se activa con la variable de entorno
+    // IA_STUDENT_SOFTWARE_RENDER=1 o -Dia.softwareRender=true, salvo que el
+    // usuario ya haya fijado skiko.renderApi explícitamente.
+    if (System.getProperty("skiko.renderApi").isNullOrBlank()) {
+        val forced = System.getProperty("ia.softwareRender") == "true" ||
+            System.getenv("IA_STUDENT_SOFTWARE_RENDER") == "1"
+        if (forced) {
+            System.setProperty("skiko.renderApi", "SOFTWARE")
+        }
+    }
+
+    application {
     val windowState = rememberWindowState(width = 1100.dp, height = 760.dp)
 
     // Carga resiliente del ícono del orbe cuántico desde classpath de JVM
@@ -52,6 +66,7 @@ fun runDesktopApplication() = application {
         icon = appIcon
     ) {
         DesktopAssistantScreen()
+    }
     }
 }
 

@@ -87,6 +87,15 @@ Este proyecto utiliza librerías, dependencias de código abierto y recursos de 
   - `junit:junit` (Eclipse Public License 1.0)
   - `androidx.test:*` (Apache License 2.0)
 
+### 11. Vosk (Reconocimiento de Voz Offline)
+- **Componentes:**
+  - `com.alphacephei:vosk` (enlace Java/JNI al motor `libvosk`)
+- **Licencia:** Apache License 2.0
+- **Copyright:** Alpha Cephei, Inc.
+- **Nota:** El modelo de voz `vosk-model-small-es-0.42` se descarga aparte desde
+  [alphacephei.com/vosk/models](https://alphacephei.com/vosk/models/) con licencia
+  Apache 2.0; no se distribuye embebido en el repositorio.
+
 ---
 
 ## 🎨 Recursos Gráficos y Multimedia (Assets)

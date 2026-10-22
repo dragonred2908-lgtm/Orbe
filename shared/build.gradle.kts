@@ -25,6 +25,8 @@ kotlin {
         val jvmMain by getting {
             dependencies {
                 implementation(compose.desktop.currentOs)
+                // STT offline (sin API key): reconocimiento de voz en CPU, modelo local.
+                implementation(libs.vosk)
             }
         }
     }

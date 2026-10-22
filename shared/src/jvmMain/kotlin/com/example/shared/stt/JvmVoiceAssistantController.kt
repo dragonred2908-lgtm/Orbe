@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
  * Integra el grabador de audio nativo, el motor STT y la sesión conversacional.
  */
 class JvmVoiceAssistantController(
-    val engine: JvmGeminiSttEngine = JvmGeminiSttEngine(),
+    val engine: SpeechToTextEngine = JvmHybridSttEngine(),
     val session: VoiceAssistantSession = VoiceAssistantSession(engine),
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default)
 ) {
@@ -41,6 +41,23 @@ class JvmVoiceAssistantController(
     init {
         // Inicializar en modo de escucha si está configurado
         session.setListeningForWakePhrase()
+
+        // Voz de salida (TTS offline del sistema) para cada respuesta del asistente.
+        scope.launch {
+            session.state.collect { state ->
+                if (state is VoiceAssistantState.Responding) {
+                    com.example.shared.audio.JvmTtsSpeaker.speak(state.answer)
+                }
+            }
+        }
+
+        // Avisar al usuario en qué modo quedó el asistente.
+        val hybrid = engine as? JvmHybridSttEngine
+        _statusNotice.value = if (hybrid != null && !hybrid.isOnlineConfigured()) {
+            "Modo sin conexión listo (sin GEMINI_API_KEY). Di \"${session.config.value.wakePhrase}, ayuda\"."
+        } else {
+            "Listo para escuchar"
+        }
     }
 
     /**
