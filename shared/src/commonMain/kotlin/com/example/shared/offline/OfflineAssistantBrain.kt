@@ -96,7 +96,7 @@ class OfflineAssistantBrain(
      * Devuelve el resultado formateado o null si no hay operación reconocible.
      */
     fun evaluateBasicMath(normalizedText: String): String? {
-        val text = normalizeMath(normalizedText)
+        val text = convertSpanishNumbers(normalizeMath(normalizedText))
             .replace(",", ".")
             // Frases largas primero: "dividido por 3" no debe degradarse en "/ * 3"
             .replace("dividido entre", "/")
@@ -160,6 +160,107 @@ class OfflineAssistantBrain(
             }
         }
         return folded.replace(Regex("\\s+"), " ").trim()
+    }
+
+    private val numberWords: Map<String, Int> = mapOf(
+        "cero" to 0, "uno" to 1, "dos" to 2, "tres" to 3, "cuatro" to 4, "cinco" to 5,
+        "seis" to 6, "siete" to 7, "ocho" to 8, "nueve" to 9,
+        "diez" to 10, "once" to 11, "doce" to 12, "trece" to 13, "catorce" to 14, "quince" to 15,
+        "dieciseis" to 16, "diecisiete" to 17, "dieciocho" to 18, "diecinueve" to 19,
+        "veinte" to 20, "veintiuno" to 21, "veintidos" to 22, "veintitres" to 23,
+        "veinticuatro" to 24, "veinticinco" to 25, "veintiseis" to 26, "veintisiete" to 27,
+        "veintiocho" to 28, "veintinueve" to 29,
+        "treinta" to 30, "cuarenta" to 40, "cincuenta" to 50, "sesenta" to 60,
+        "setenta" to 70, "ochenta" to 80, "noventa" to 90,
+        "cien" to 100, "ciento" to 100, "mil" to 1000
+    )
+
+    /**
+     * Convierte números escritos en palabras ("veinticinco", "treinta y dos",
+     * "ciento veinte") a dígitos para poder evaluarlos. Soporta 0–999 y "mil".
+     * Las palabras "un"/"una" se dejan intactas para no corromper frases normales.
+     */
+    fun convertSpanishNumbers(text: String): String {
+        val tokens = text.split(" ")
+        val out = StringBuilder()
+
+        fun isTens(value: Int?) = value != null && value in 30..90
+        fun isUnit(value: Int?) = value != null && value in 1..9
+
+        var i = 0
+        while (i < tokens.size) {
+            val word = tokens[i]
+            val value = numberWords[word]
+
+            when {
+                value == null -> {
+                    out.append(word).append(' ')
+                    i++
+                }
+
+                word == "mil" -> {
+                    out.append("1000 ")
+                    i++
+                }
+
+                word == "cien" || word == "ciento" -> {
+                    var total = 100
+                    var j = i + 1
+                    if (j < tokens.size) {
+                        val next = numberWords[tokens[j]]
+                        if (isTens(next)) {
+                            // "ciento treinta" -> 130 (+ unidad con "y")
+                            total += next!!
+                            j++
+                            if (j + 1 < tokens.size && tokens[j] == "y") {
+                                val unit = numberWords[tokens[j + 1]]
+                                if (isUnit(unit)) {
+                                    total += unit!!
+                                    j += 2
+                                }
+                            }
+                        } else if (isUnit(next)) {
+                            total += next!!
+                            j++
+                        } else if (next != null && next in 20..29) {
+                            // "ciento veinte" -> 120, "ciento veinticinco" -> 125
+                            total += next
+                            j++
+                        }
+                    }
+                    out.append(total).append(' ')
+                    i = j
+                }
+
+                isTens(value) -> {
+                    var total = value!!
+                    var j = i + 1
+                    if (j + 1 < tokens.size && tokens[j] == "y") {
+                        val unit = numberWords[tokens[j + 1]]
+                        if (isUnit(unit)) {
+                            total += unit!!
+                            j += 2
+                        }
+                    } else if (j < tokens.size) {
+                        // Vosk con gramática a veces omite la "y": "treinta dos" -> 32
+                        val unit = numberWords[tokens[j]]
+                        if (isUnit(unit)) {
+                            total += unit!!
+                            j++
+                        }
+                    }
+                    out.append(total).append(' ')
+                    i = j
+                }
+
+                else -> {
+                    out.append(value).append(' ')
+                    i++
+                }
+            }
+        }
+
+        return out.toString().replace(Regex("\\s+"), " ").trim()
     }
 
     private fun formatNumber(value: Double): String {

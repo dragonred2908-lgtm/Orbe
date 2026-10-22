@@ -41,6 +41,43 @@ class JvmVoskSttEngine(
         const val MODEL_NAME = "vosk-model-small-es-0.42"
         const val MODEL_URL = "https://alphacephei.com/vosk/models/$MODEL_NAME.zip"
         private const val SAMPLE_RATE = 16000f
+
+        /**
+         * Gramática restringida para el modo offline: limita el reconocimiento al
+         * vocabulario del asistente (frase de activación, comandos, números y
+         * operadores). Esto aumenta muchísimo la precisión del modelo pequeño,
+         * que sin gramática confunde palabras parecidas.
+         */
+        val OFFLINE_GRAMMAR: String = buildString {
+            append("[")
+            val phrases = listOf(
+                // Frase de activación y variantes fonéticas habituales
+                "oye aura", "hola aura", "ola aura", "oye ahora", "oye laura", "aura", "oye",
+                // Comandos soportados
+                "que hora es", "la hora", "dime la hora", "hora",
+                "que fecha es hoy", "que dia es hoy", "la fecha", "fecha", "dia",
+                "quien eres", "como te llamas", "tu nombre", "que eres",
+                "ayuda", "que puedes hacer", "comandos", "funciones",
+                "cuanto es", "cuanto son", "calcula",
+                "mas", "menos", "por", "entre", "dividido", "dividido por", "elevado", "elevado a",
+                // Números (el modelo pequeño suele devolver palabras)
+                "cero", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve",
+                "diez", "once", "doce", "trece", "catorce", "quince", "dieciseis", "diecisiete",
+                "dieciocho", "diecinueve", "veinte", "veintiuno", "veintidos", "veintitres",
+                "veinticuatro", "veinticinco", "veintiseis", "veintisiete", "veintiocho", "veintinueve",
+                "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa",
+                "cien", "ciento", "mil", "millon",
+                // Cortesía / otros
+                "hola", "buenos dias", "buenas tardes", "buenas noches", "gracias", "adios",
+                "hasta luego", "clima", "tiempo", "temperatura",
+                "[unk]"
+            )
+            phrases.forEachIndexed { index, phrase ->
+                if (index > 0) append(", ")
+                append("\"").append(phrase.replace("\\", "\\\\").replace("\"", "\\\"")).append("\"")
+            }
+            append("]")
+        }
     }
 
     private val _modelStatus = MutableStateFlow<ModelStatus>(ModelStatus.Checking)
@@ -155,7 +192,15 @@ class JvmVoskSttEngine(
             return try {
                 val model = Model(dir.absolutePath)
                 cachedModel = model
-                Recognizer(model, SAMPLE_RATE)
+                val recognizer = Recognizer(model, SAMPLE_RATE)
+                // Gramática restringida: mejora enormemente la precisión del
+                // modelo pequeño para el vocabulario del asistente.
+                try {
+                    recognizer.setGrammar(OFFLINE_GRAMMAR)
+                } catch (_: Exception) {
+                    // Si el modelo no soporta gramática, seguimos con reconocimiento libre.
+                }
+                recognizer
             } catch (t: Throwable) {
                 // UnsatisfiedLinkError u otros fallos de carga nativa: degradar sin crashear.
                 _modelStatus.value = ModelStatus.Error(
@@ -245,6 +290,9 @@ class JvmVoskSttEngine(
         val secondQuote = json.indexOf('"', firstQuote + 1)
         if (secondQuote == -1) return json.trim()
         return json.substring(firstQuote + 1, secondQuote)
+            // La gramática restringida marca las palabras fuera de vocabulario con [unk]:
+            // mejor quitarlas que mostrarlas al usuario.
+            .replace("[unk]", " ")
             .replace(Regex("""\s+"""), " ")
             .trim()
     }

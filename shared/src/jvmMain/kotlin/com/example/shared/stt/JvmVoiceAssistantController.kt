@@ -149,6 +149,30 @@ class JvmVoiceAssistantController(
     }
 
     /**
+     * Procesa una consulta escrita directamente (sin micrófono ni frase de
+     * activación). Útil para teclado y para entornos sin micrófono.
+     */
+    fun submitTextQuery(text: String) {
+        val clean = text.trim()
+        if (clean.isEmpty()) return
+        scope.launch {
+            session.updateRmsLevel(0.5f)
+            delay(120)
+            session.updateRmsLevel(0f)
+            session.triggerQuery(clean)
+            _statusNotice.value = "Consulta escrita: \"$clean\""
+        }
+    }
+
+    /** Activa o silencia la voz de salida (TTS). */
+    fun setTtsEnabled(enabled: Boolean) {
+        com.example.shared.audio.JvmTtsSpeaker.enabled = enabled
+        _statusNotice.value = if (enabled) "Voz del asistente activada" else "Voz del asistente silenciada"
+    }
+
+    fun isTtsEnabled(): Boolean = com.example.shared.audio.JvmTtsSpeaker.enabled
+
+    /**
      * Actualiza la frase de activación u otras opciones de configuración.
      */
     fun updateWakePhrase(newPhrase: String) {

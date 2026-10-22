@@ -123,9 +123,10 @@ class VoiceAssistantSession(
                     )
                     _history.value = listOf(item) + _history.value
 
-                    // Si autoRestartListening está activo, volver a escuchar frase clave
+                    // Si autoRestartListening está activo, volver a escuchar frase clave.
+                    // 8 segundos dan tiempo suficiente para leer (y oír) la respuesta completa.
                     if (_config.value.autoRestartListening) {
-                        kotlinx.coroutines.delay(1200)
+                        kotlinx.coroutines.delay(8000)
                         if (_state.value is VoiceAssistantState.Responding) {
                             _state.value = VoiceAssistantState.ListeningForWakePhrase
                         }

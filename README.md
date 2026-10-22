@@ -155,6 +155,69 @@ curl -L -o vosk-model-small-es-0.42.zip https://alphacephei.com/vosk/models/vosk
 # (descomprimir dentro de la carpeta .ia-student/models/)
 ```
 
+### 🖼️ Interfaz: orbe a pantalla completa y menú ☰
+
+La pantalla principal del escritorio es **el orbe a pantalla completa**, con una
+**barra superior mínima** y un **menú hamburguesa (☰) en la esquina superior
+derecha** desde el que se accede a todo lo demás:
+
+| Opción del menú ☰ | Qué hace |
+| :--- | :--- |
+| **⚙️ Ajustes del asistente** | `GEMINI_API_KEY`, modelo de IA, frase de activación y presets |
+| **🕘 Historial** | Todas las consultas y respuestas de la sesión |
+| **🧪 Pruebas rápidas** | Simula la voz (hora, cálculo, identidad, ayuda) sin micrófono |
+| **🖼️ Elegir imagen del orbe…** | Abre el selector de archivos y usa **tu propio GIF/PNG/JPG** como orbe |
+| **🔇 Silenciar / 🔊 Activar voz** | Enciende o apaga la síntesis de voz |
+
+Tu imagen del orbe **no necesita recompilar la app**: se carga desde disco al
+arrancar. Colócala en:
+
+```
+Windows:       %USERPROFILE%\.ia-student\orb.gif   (o .png / .jpg / .jpeg)
+Linux / macOS: ~/.ia-student/orb.gif
+```
+
+También puedes elegirla desde el menú ☰ → *Elegir imagen del orbe…*, que copia
+el archivo a esa carpeta automáticamente. Si no hay imagen, la app usa el orbe
+cuántico procedural como respaldo. Los GIF se reproducen en bucle y se reducen
+a 720 px para no saturar PCs con renderizado por software.
+
+Para diagnósticos o capturas de soporte, `IA_STUDENT_UI_PANEL=settings`,
+`history` o `tests` abre ese panel lateral al arrancar.
+
+### 🗣️ Precisión del reconocimiento (gramática restringida)
+
+El modelo pequeño de Vosk confundía palabras parecidas. Ahora el reconocimiento
+está **restringido por gramática** (`Recognizer.setGrammar`) al vocabulario real
+del asistente: frase de activación, comandos, números y operadores. Con el mismo
+modelo de 38 MB la transcripción de comandos mejora de forma notable.
+
+Además, el cerebro offline entiende **números escritos en palabras**, porque el
+modelo suele devolver *"veinticinco"* en lugar de *"25"*:
+
+- *"Oye Aura, ¿cuánto es veinticinco por cuatro?"* → **100**
+- *"Oye Aura, ¿cuánto es treinta y dos más ocho?"* → **40**
+- *"Oye Aura, ¿cuánto es ciento veinte entre cuatro?"* → **30**
+
+### 🔊 Voz más natural (no robótica)
+
+La síntesis usa **la mejor voz en español instalada en el sistema**, elegida
+automáticamente (prioridad: *Helena → Sabina → Laura → Pablo → Raúl → cualquier
+voz `es-*`*). Antes se usaba la voz inglesa por defecto (*Zira*), que pronunciaba
+el español con fonética inglesa: esa era la causa principal del sonido robótico.
+
+- El texto viaja a la voz en **Base64 UTF-8**, así los acentos y signos `¿¡` se
+  pronuncian correctamente en Windows.
+- Cada respuesta **cancela la locución anterior**, evitando respuestas encoladas.
+- Si tu Windows solo tiene voces inglesas, instala el paquete de idioma
+  *Español (España)* → *Voz* en **Configuración → Hora e idioma → Idioma**.
+
+### 📖 Tiempo para leer la respuesta
+
+La última respuesta queda **fija en pantalla hasta la siguiente consulta** y el
+asistente tarda **8 segundos** en volver a esperar la frase de activación (antes
+1,2 s), de modo que siempre da tiempo a leer y a oír la respuesta completa.
+
 ---
 
 ## 🖥️ PCs Antiguas (sin DirectX 12 / GPU integrada antigua)

@@ -48,7 +48,12 @@ fun runDesktopApplication() {
     }
 
     application {
-    val windowState = rememberWindowState(width = 1100.dp, height = 760.dp)
+    // La UI principal es el orbe a pantalla completa: arrancamos maximizado.
+    val windowState = rememberWindowState(
+        placement = androidx.compose.ui.window.WindowPlacement.Maximized,
+        width = 1280.dp,
+        height = 860.dp
+    )
 
     // Carga resiliente del ícono del orbe cuántico desde classpath de JVM
     val appIcon: Painter? = try {

@@ -93,4 +93,39 @@ class OfflineAssistantBrainTest {
     fun testMatematicaSinOperacionDevuelveNull() {
         assertEquals(null, brain().evaluateBasicMath("hola que tal"))
     }
+
+    @Test
+    fun testNumeroEnPalabrasSimple() {
+        // Vosk con gramática suele devolver números en palabras
+        assertEquals("100", brain().evaluateBasicMath("veinticinco por cuatro"))
+        assertEquals("5", brain().evaluateBasicMath("diez menos cinco"))
+        assertEquals("30", brain().evaluateBasicMath("diez mas veinte"))
+    }
+
+    @Test
+    fun testNumeroEnPalabrasCompuesto() {
+        assertEquals("40", brain().evaluateBasicMath("treinta y dos mas ocho"))
+        assertEquals("30", brain().evaluateBasicMath("ciento veinte entre cuatro"))
+        assertEquals("150", brain().evaluateBasicMath("ciento cincuenta menos cero"))
+    }
+
+    @Test
+    fun testConvertSpanishNumbersNoTocaUnUna() {
+        // "un"/"una" no deben convertirse: romperían frases normales
+        assertEquals("una pregunta", brain().convertSpanishNumbers("una pregunta"))
+        assertEquals("un momento", brain().convertSpanishNumbers("un momento"))
+    }
+
+    @Test
+    fun testNumeroEnPalabrasSinLaConjuncion() {
+        // La gramática de Vosk a veces omite la "y" al transcribir
+        assertEquals("40", brain().evaluateBasicMath("treinta dos mas ocho"))
+        assertEquals("70", brain().evaluateBasicMath("sesenta cuatro mas seis"))
+    }
+
+    @Test
+    fun testConvertSpanishNumbersCientos() {
+        assertEquals("125", brain().convertSpanishNumbers("ciento veinticinco"))
+        assertEquals("1000", brain().convertSpanishNumbers("mil"))
+    }
 }
